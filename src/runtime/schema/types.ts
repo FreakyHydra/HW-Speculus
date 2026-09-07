@@ -52,6 +52,8 @@ export type SimulationAsset = {
 export type SpeculusCatalogIdentity = {
   code: string;
   prefix: string;
+  generation: number;
+  series: string;
   number: number;
   classification: string;
 };
