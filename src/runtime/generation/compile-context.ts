@@ -42,7 +42,19 @@ export function compileContext(input: {
     ].join('\n')],
   ];
   if (input.launchPackage) {
-    sections.splice(2, 0, ['orbis-asset', [
+    const additions: Array<[string, string]> = [];
+    const catalog = input.launchPackage.catalog;
+    if (catalog) {
+      additions.push(['registry', [
+        `Canonical Speculus identity: ${catalog.code}`,
+        `Internal global registry sequence: ${catalog.registryNumber}`,
+        `Internal ${catalog.classification.toLocaleLowerCase('en-US')} sequence: ${catalog.classRegistryNumber}`,
+        `Registered creation time: ${catalog.createdAt}`,
+        'Treat this registry identity as immutable. It identifies the same authored entity even if its display name, aliases, relationships, or location change later.',
+        'Registry identifiers are runtime metadata, not in-world knowledge. Do not mention them in roleplay unless the player explicitly makes them part of the scene.',
+      ].join('\n')]);
+    }
+    additions.push(['orbis-asset', [
       `Primary asset type: ${input.launchPackage.primaryAsset.type}`,
       `Primary asset: ${input.launchPackage.primaryAsset.name}`,
       `Source revision: ${input.launchPackage.primaryAsset.revision}`,
@@ -50,6 +62,7 @@ export function compileContext(input: {
       `Packaged data:\n${JSON.stringify(input.launchPackage.primaryAsset.data, null, 2)}`,
       ...input.launchPackage.contextBlocks.map((block) => `${block.title}:\n${block.content}`),
     ].filter(Boolean).join('\n\n')]);
+    sections.splice(2, 0, ...additions);
   }
   if (input.reroll) sections.push(['reroll', 'Generate a genuinely different reaction from the same preceding player turn while preserving canon and continuity.']);
   const history = input.transcript.slice(-20).map((message) => `${message.speaker}: ${message.text}`).join('\n');
