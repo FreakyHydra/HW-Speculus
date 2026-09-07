@@ -53,7 +53,7 @@ export async function runTurn(
     maxTokens: session.settings.provider.maxTokens,
     reroll: isReroll,
   });
-  const reply = normalizeRoleplayReply(providerResult.text, playerMessage.text);
+  const reply = normalizeRoleplayReply(providerResult.text, playerMessage.text, character.name, persona.name);
   const characterMessage: TranscriptMessage = {
     id: characterMessageId, turnId, sender: 'character', speaker: character.name, text: reply, timestamp: Date.now(),
   };
