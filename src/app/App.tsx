@@ -11,6 +11,7 @@ import { createSession, withOpeningMessage, type SimulatorSession } from '../sim
 import { clearSession, loadSession, saveSession } from '../storage/session-storage';
 
 type BootState = { status: 'receiving' | 'ready' | 'error'; error?: string };
+type ThemeMode = 'dark' | 'light' | 'auto';
 
 async function claimLaunch(code: string): Promise<ClientLaunchPackage> {
   const response = await fetch(`/api/launch/${encodeURIComponent(code)}`);
@@ -26,6 +27,15 @@ export function App() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    const saved = window.localStorage.getItem('speculus-theme');
+    return saved === 'light' || saved === 'auto' || saved === 'dark' ? saved : 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem('speculus-theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,6 +139,13 @@ export function App() {
           <div className="data-readout"><span>MODEL</span><strong>{session.settings.provider.model}</strong></div>
           <div className="data-readout"><span>CREDENTIAL</span><strong>SERVER SEALED</strong></div>
           <label className="toggle"><input type="checkbox" checked={session.settings.crtMotion} onChange={(event) => setSession({ ...session, settings: { ...session.settings, crtMotion: event.target.checked } })} /> CRT MOTION</label>
+          <label className="theme-select">DISPLAY THEME
+            <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>
+              <option value="dark">BLUE MOON DARK</option>
+              <option value="light">BLUE MOON LIGHT</option>
+              <option value="auto">AUTO</option>
+            </select>
+          </label>
         </section>
       </aside>
 
