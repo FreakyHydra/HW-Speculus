@@ -4,6 +4,7 @@ import { isRoleplayFormattingStable, normalizeRoleplayReply } from '../src/runti
 import { resolveActiveCast } from '../src/runtime/generation/perception';
 import { commitRelationshipEvent, getRelationship } from '../src/runtime/relationships/core';
 import { importCharacterCard, importPersona } from '../src/runtime/schema/importers';
+import type { ClientLaunchPackage } from '../src/runtime/schema/types';
 import { character, persona } from './fixtures';
 
 describe('runtime foundations', () => {
@@ -14,6 +15,35 @@ describe('runtime foundations', () => {
     expect(compiled.prompt).toContain('Skyler');
     expect(compiled.prompt).toContain('Inside the test vault.');
     expect(compiled.manifest.includedSections).toContain('persona');
+  });
+
+  it('anchors Orbis context to the immutable SPC registry identity', () => {
+    const relationship = getRelationship({}, character.id, persona.id);
+    const launchPackage: ClientLaunchPackage = {
+      version: 1,
+      launchId: 'launch-runtime-registry',
+      issuedAt: 1,
+      expiresAt: 2,
+      catalog: {
+        code: 'SPC-C-KD41827', prefix: 'C', plate: 'KD41827', generation: 1,
+        registryNumber: 27, classRegistryNumber: 2, classification: 'CHARACTER',
+        createdAt: '2026-09-08T00:00:00.000Z', status: 'active',
+      },
+      primaryAsset: { id: character.id, revision: 'rev-1', type: 'character', name: character.name, summary: character.description, data: {} },
+      relatedAssets: [],
+      character,
+      persona,
+      scene: 'Inside the test vault.',
+      contextBlocks: [],
+      relationshipState: {},
+      model: 'xialong-v1',
+    };
+    const compiled = compileContext({ character, persona, scene: launchPackage.scene, transcript: [], relationship, launchPackage });
+    expect(compiled.manifest.includedSections).toContain('registry');
+    expect(compiled.prompt).toContain('Canonical Speculus identity: SPC-C-KD41827');
+    expect(compiled.prompt).toContain('Internal global registry sequence: 27');
+    expect(compiled.prompt).toContain('Internal character sequence: 2');
+    expect(compiled.prompt).toContain('not in-world knowledge');
   });
 
   it('keeps character and persona schemas distinct', () => {
