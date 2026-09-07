@@ -49,6 +49,13 @@ export type SimulationAsset = {
   data: unknown;
 };
 
+export type SpeculusCatalogIdentity = {
+  code: string;
+  prefix: string;
+  number: number;
+  classification: string;
+};
+
 export type ContextBlock = { id: string; title: string; content: string };
 
 export type OrbisLaunchPackage = {
@@ -56,6 +63,7 @@ export type OrbisLaunchPackage = {
   launchId: string;
   issuedAt: number;
   expiresAt: number;
+  catalog: SpeculusCatalogIdentity;
   primaryAsset: SimulationAsset;
   relatedAssets: SimulationAsset[];
   character: CharacterCard | null;
