@@ -4,7 +4,7 @@ import { DiagnosticsPanel } from '../components/DiagnosticsPanel';
 import { Transcript } from '../components/Transcript';
 import { BrowserProvider } from '../runtime/providers/browser';
 import { getRelationship } from '../runtime/relationships/core';
-import { parseClientLaunchPackage } from '../runtime/schema/launch-package';
+import { parseClientLaunchPackage, resolveCatalogIdentity } from '../runtime/schema/launch-package';
 import type { ClientLaunchPackage, TranscriptMessage } from '../runtime/schema/types';
 import { deleteCharacterTurn, runTurn } from '../simulator/engine';
 import { createSession, withOpeningMessage, type SimulatorSession } from '../simulator/session';
@@ -100,6 +100,7 @@ export function App() {
   }
 
   const source = session.launchPackage!.primaryAsset;
+  const catalog = resolveCatalogIdentity(session.launchPackage!);
   const updateScene = (scene: string) => setSession((current) => current ? { ...current, scene, updatedAt: Date.now() } : current);
   const endSimulation = () => {
     clearSession();
@@ -113,7 +114,7 @@ export function App() {
   return <main className={`terminal-frame ${session.settings.crtMotion ? '' : 'motion-off'}`}>
     <div className="screen-noise" aria-hidden="true" />
     <header className="system-header">
-      <div><span className="system-mark">SPC-82</span><h1>SPECULUS</h1><p>FIELD TERMINAL / ORBIS SIMULATION RECEIVER</p></div>
+      <div><span className="system-mark" title={catalog.classification}>{catalog.code}</span><h1>SPECULUS</h1><p>FIELD TERMINAL / ORBIS SIMULATION RECEIVER</p></div>
       <div className="status-bank"><span><i className="lamp lamp-green" />CORE</span><span><i className="lamp lamp-green" />ORBIS</span><span><i className="lamp lamp-green" />MODEL</span></div>
     </header>
 
@@ -121,6 +122,8 @@ export function App() {
       <aside className="panel subject-panel">
         <header className="panel-header"><span>PACKAGE</span><span>VER. 1</span></header>
         <dl>
+          <dt>SPECULUS ID</dt><dd>{catalog.code}</dd>
+          <dt>CLASSIFICATION</dt><dd>{catalog.classification}</dd>
           <dt>PRIMARY ASSET</dt><dd>{source.name}</dd>
           <dt>ASSET TYPE</dt><dd>{source.type.toLocaleUpperCase('en-US')}</dd>
           <dt>SOURCE REVISION</dt><dd>{source.revision}</dd>
