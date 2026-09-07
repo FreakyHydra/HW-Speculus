@@ -1,5 +1,9 @@
 const MARKED_SPAN = /(\*[^*]+\*|"[^"]+"|\[[^\]]+\])/;
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export function stripEchoedPlayerTurn(reply: string, playerTurn: string): string {
   const words = (value: string) => [...value.toLocaleLowerCase('en-US').matchAll(/[\p{L}\p{N}]+/gu)].map((match) => match[0]);
   const source = words(playerTurn);
@@ -11,13 +15,35 @@ export function stripEchoedPlayerTurn(reply: string, playerTurn: string): string
   return remainder || reply;
 }
 
-export function normalizeRoleplayReply(raw: string, latestPlayerTurn = ''): string {
+function trimModelContinuation(reply: string, characterName = '', playerName = ''): string {
+  let value = reply;
+  if (characterName) {
+    value = value.replace(new RegExp(`^\\s*${escapeRegExp(characterName)}\\s*:\\s*`, 'i'), '');
+  }
+
+  const boundaries: RegExp[] = [
+    /\n\s*Emotion\s*:/i,
+    /\n\s*(?:Assistant|System|User|Player)\s*:/i,
+  ];
+  if (characterName) boundaries.push(new RegExp(`\\n\\s*${escapeRegExp(characterName)}\\s*:\\s*`, 'i'));
+  if (playerName) boundaries.push(new RegExp(`\\n\\s*${escapeRegExp(playerName)}\\s*:\\s*`, 'i'));
+
+  let cut = value.length;
+  for (const boundary of boundaries) {
+    const match = boundary.exec(value);
+    if (match?.index !== undefined && match.index < cut) cut = match.index;
+  }
+  return value.slice(0, cut).trim();
+}
+
+export function normalizeRoleplayReply(raw: string, latestPlayerTurn = '', characterName = '', playerName = ''): string {
   let value = stripEchoedPlayerTurn(raw.trim(), latestPlayerTurn)
     .replace(/<\|(?:assistant|user|system)\|>/gi, '')
     .replace(/^\s*(?:assistant|character)\s*:\s*/i, '')
     .replace(/[“”]/g, '"')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+  value = trimModelContinuation(value, characterName, playerName);
   if (!value) throw new Error('The provider returned an empty reply.');
   if (!MARKED_SPAN.test(value)) value = `"${value.replace(/^"|"$/g, '')}"`;
   return value;
