@@ -15,25 +15,30 @@ export function stripEchoedPlayerTurn(reply: string, playerTurn: string): string
   return remainder || reply;
 }
 
-function trimModelContinuation(reply: string, characterName = '', playerName = ''): string {
+function cleanModelArtifacts(reply: string, characterName = '', playerName = ''): string {
   let value = reply;
+
+  // Model-side metadata is useful for diagnostics but should never appear in the chat transcript.
+  value = value.replace(/^\s*Emotion\s*:\s*[^\r\n]*(?:\r?\n|$)/gim, '');
+
+  // The transcript already renders the active speaker. Preserve the prose after any repeated character label.
   if (characterName) {
-    value = value.replace(new RegExp(`^\\s*${escapeRegExp(characterName)}\\s*:\\s*`, 'i'), '');
+    value = value.replace(new RegExp(`^\\s*${escapeRegExp(characterName)}\\s*:\\s*`, 'gim'), '');
   }
 
+  // A real speaker boundary means the model has started writing someone other than the active subject.
   const boundaries: RegExp[] = [
-    /\n\s*Emotion\s*:/i,
-    /\n\s*(?:Assistant|System|User|Player)\s*:/i,
+    /^\s*(?:Assistant|System|User|Player)\s*:/im,
   ];
-  if (characterName) boundaries.push(new RegExp(`\\n\\s*${escapeRegExp(characterName)}\\s*:\\s*`, 'i'));
-  if (playerName) boundaries.push(new RegExp(`\\n\\s*${escapeRegExp(playerName)}\\s*:\\s*`, 'i'));
+  if (playerName) boundaries.push(new RegExp(`^\\s*${escapeRegExp(playerName)}\\s*:\\s*`, 'im'));
 
   let cut = value.length;
   for (const boundary of boundaries) {
     const match = boundary.exec(value);
     if (match?.index !== undefined && match.index < cut) cut = match.index;
   }
-  return value.slice(0, cut).trim();
+
+  return value.slice(0, cut).replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export function normalizeRoleplayReply(raw: string, latestPlayerTurn = '', characterName = '', playerName = ''): string {
@@ -43,7 +48,7 @@ export function normalizeRoleplayReply(raw: string, latestPlayerTurn = '', chara
     .replace(/[“”]/g, '"')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-  value = trimModelContinuation(value, characterName, playerName);
+  value = cleanModelArtifacts(value, characterName, playerName);
   if (!value) throw new Error('The provider returned an empty reply.');
   if (!MARKED_SPAN.test(value)) value = `"${value.replace(/^"|"$/g, '')}"`;
   return value;
