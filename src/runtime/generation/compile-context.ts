@@ -1,5 +1,5 @@
 import { relationshipLabel, type getRelationship } from '../relationships/core';
-import type { CharacterCard, CompiledContext, Persona, TranscriptMessage } from '../schema/types';
+import type { CharacterCard, ClientLaunchPackage, CompiledContext, Persona, TranscriptMessage } from '../schema/types';
 
 type Relationship = ReturnType<typeof getRelationship>;
 
@@ -13,6 +13,7 @@ export function compileContext(input: {
   scene: string;
   transcript: TranscriptMessage[];
   relationship: Relationship;
+  launchPackage?: ClientLaunchPackage | null;
   reroll?: boolean;
 }): CompiledContext {
   const { character, persona, relationship } = input;
@@ -40,6 +41,16 @@ export function compileContext(input: {
       'Keep action, dialogue, and thought inline when they belong to one natural paragraph.',
     ].join('\n')],
   ];
+  if (input.launchPackage) {
+    sections.splice(2, 0, ['orbis-asset', [
+      `Primary asset type: ${input.launchPackage.primaryAsset.type}`,
+      `Primary asset: ${input.launchPackage.primaryAsset.name}`,
+      `Source revision: ${input.launchPackage.primaryAsset.revision}`,
+      input.launchPackage.primaryAsset.summary,
+      `Packaged data:\n${JSON.stringify(input.launchPackage.primaryAsset.data, null, 2)}`,
+      ...input.launchPackage.contextBlocks.map((block) => `${block.title}:\n${block.content}`),
+    ].filter(Boolean).join('\n\n')]);
+  }
   if (input.reroll) sections.push(['reroll', 'Generate a genuinely different reaction from the same preceding player turn while preserving canon and continuity.']);
   const history = input.transcript.slice(-20).map((message) => `${message.speaker}: ${message.text}`).join('\n');
   sections.push(['history', history || '(no prior messages)']);

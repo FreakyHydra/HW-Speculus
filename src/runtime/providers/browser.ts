@@ -2,7 +2,7 @@ import type { ProviderKind } from '../schema/types';
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from './types';
 
 export class BrowserProvider implements ProviderAdapter {
-  constructor(readonly kind: Exclude<ProviderKind, 'mock'>) {}
+  readonly kind = 'orbis' as const;
 
   async generate(request: ProviderRequest): Promise<ProviderResult> {
     const response = await fetch('/api/generate', {

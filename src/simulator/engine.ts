@@ -17,7 +17,7 @@ export async function runTurn(
   session: SimulatorSession,
   input: string,
   provider: ProviderAdapter,
-  options: { rerollCharacterId?: string; apiToken?: string; scorer?: RelationshipScorer } = {},
+  options: { rerollCharacterId?: string; scorer?: RelationshipScorer } = {},
 ): Promise<SimulatorSession> {
   const cleanInput = input.trim();
   if (!cleanInput) throw new Error('Enter a player turn first.');
@@ -44,14 +44,13 @@ export async function runTurn(
   const compiledContext = compileContext({
     character, persona, scene: session.scene, transcript: transcriptBeforeReply,
     relationship: relationshipBefore, reroll: isReroll,
+    launchPackage: session.launchPackage,
   });
   const providerResult = await provider.generate({
     prompt: compiledContext.prompt,
     model: session.settings.provider.model,
     temperature: session.settings.provider.temperature,
     maxTokens: session.settings.provider.maxTokens,
-    baseUrl: session.settings.provider.baseUrl,
-    apiToken: options.apiToken,
     reroll: isReroll,
   });
   const reply = normalizeRoleplayReply(providerResult.text, playerMessage.text);

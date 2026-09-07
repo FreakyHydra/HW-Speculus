@@ -19,6 +19,7 @@ button, select { text-transform: uppercase; }
 
 .boot-screen { min-height: 100vh; padding: clamp(2rem, 8vw, 8rem); display: grid; align-content: center; background: radial-gradient(ellipse, #14160c, #020302 72%); color: var(--amber); text-shadow: 0 0 8px #c5832766; }
 .boot-copy { font-size: clamp(.9rem, 2.1vw, 1.35rem); line-height: 1.65; letter-spacing: .08em; }
+.boot-fault { color: #ef785c; text-shadow: 0 0 9px #b73c2d77; }
 .cursor, .working-line span { animation: blink .8s steps(1) infinite; }
 .boot-skip { position: fixed; right: 2rem; bottom: 2rem; }
 
@@ -54,6 +55,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--amber); box-shad
 button:disabled { opacity: .45; cursor: wait; }
 .toggle { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: .5rem; }
 .toggle input { width: auto; accent-color: var(--amber); }
+.data-readout { display: flex; justify-content: space-between; gap: .5rem; color: #69734f; font-size: .62rem; }
+.data-readout strong { color: #aebe80; text-align: right; overflow-wrap: anywhere; }
 .inline-editor { display: grid; gap: 6px; padding: 8px; border-left: 2px solid var(--amber-dim); }
 .error-line { margin: 8px 12px; padding: 8px; border-left: 3px solid #b9543f; color: #ef8f77; font-size: .75rem; }
 

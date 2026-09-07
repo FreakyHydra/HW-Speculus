@@ -5,8 +5,6 @@ export type ProviderRequest = {
   model: string;
   temperature: number;
   maxTokens: number;
-  baseUrl?: string;
-  apiToken?: string;
   reroll?: boolean;
   signal?: AbortSignal;
 };

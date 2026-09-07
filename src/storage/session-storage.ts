@@ -1,11 +1,12 @@
 import { z } from 'zod';
-import { SESSION_VERSION, createSession, type SimulatorSession } from '../simulator/session';
+import { SESSION_VERSION, type SimulatorSession } from '../simulator/session';
 
 export const SESSION_STORAGE_KEY = 'speculus.session.v1';
 
 const storedSchema = z.object({
   version: z.literal(SESSION_VERSION),
   id: z.string(),
+  launchPackage: z.unknown().nullable(),
   character: z.unknown().nullable(),
   persona: z.unknown().nullable(),
   scene: z.string(),
@@ -13,7 +14,7 @@ const storedSchema = z.object({
   relationships: z.record(z.string(), z.unknown()),
   diagnostics: z.array(z.unknown()),
   settings: z.object({
-    provider: z.object({ kind: z.enum(['mock', 'novelai', 'ollama']), model: z.string(), baseUrl: z.string(), temperature: z.number(), maxTokens: z.number() }),
+    provider: z.object({ kind: z.enum(['mock', 'orbis']), model: z.string(), temperature: z.number(), maxTokens: z.number() }),
     crtMotion: z.boolean(),
   }),
   nextTurnNumber: z.number().int().positive(),
@@ -34,12 +35,16 @@ export function deserializeSession(raw: string): SimulatorSession {
   return result.data as SimulatorSession;
 }
 
-export function loadSession(storage: Pick<Storage, 'getItem'> = localStorage): SimulatorSession {
+export function loadSession(storage: Pick<Storage, 'getItem'> = sessionStorage): SimulatorSession | null {
   const raw = storage.getItem(SESSION_STORAGE_KEY);
-  if (!raw) return createSession();
-  try { return deserializeSession(raw); } catch { return createSession(); }
+  if (!raw) return null;
+  try { return deserializeSession(raw); } catch { return null; }
 }
 
-export function saveSession(session: SimulatorSession, storage: Pick<Storage, 'setItem'> = localStorage): void {
+export function saveSession(session: SimulatorSession, storage: Pick<Storage, 'setItem'> = sessionStorage): void {
   storage.setItem(SESSION_STORAGE_KEY, serializeSession(session));
+}
+
+export function clearSession(storage: Pick<Storage, 'removeItem'> = sessionStorage): void {
+  storage.removeItem(SESSION_STORAGE_KEY);
 }

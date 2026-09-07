@@ -15,7 +15,7 @@ class CapturingProvider implements ProviderAdapter {
 }
 
 function readySession(): SimulatorSession {
-  return { ...createSession(1000), character, persona, scene: 'A sealed workshop test.', settings: { provider: { kind: 'mock', model: 'test-model', baseUrl: '', temperature: .5, maxTokens: 300 }, crtMotion: false } };
+  return { ...createSession(1000), character, persona, scene: 'A sealed workshop test.', settings: { provider: { kind: 'mock', model: 'test-model', temperature: .5, maxTokens: 300 }, crtMotion: false } };
 }
 
 describe('simulator transaction', () => {
@@ -58,10 +58,9 @@ describe('simulator transaction', () => {
     expect(getRecord(deleted).score).toBe(0);
   });
 
-  it('round-trips a persisted session without secrets', async () => {
-    const next = await runTurn(readySession(), 'Hello.', new CapturingProvider(), { apiToken: 'ephemeral-secret' });
+  it('round-trips a persisted session', async () => {
+    const next = await runTurn(readySession(), 'Hello.', new CapturingProvider());
     const raw = serializeSession(next);
-    expect(raw).not.toContain('ephemeral-secret');
     expect(deserializeSession(raw)).toEqual(next);
   });
 });

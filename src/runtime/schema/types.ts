@@ -29,15 +29,45 @@ export type TranscriptMessage = {
   timestamp: number;
 };
 
-export type ProviderKind = 'mock' | 'novelai' | 'ollama';
+export type ProviderKind = 'mock' | 'orbis';
 
 export type ProviderSettings = {
   kind: ProviderKind;
   model: string;
-  baseUrl: string;
   temperature: number;
   maxTokens: number;
 };
+
+export type SimulationAssetType = 'character' | 'world' | 'place' | 'item' | 'faction' | 'other';
+
+export type SimulationAsset = {
+  id: string;
+  revision: string;
+  type: SimulationAssetType;
+  name: string;
+  summary: string;
+  data: unknown;
+};
+
+export type ContextBlock = { id: string; title: string; content: string };
+
+export type OrbisLaunchPackage = {
+  version: 1;
+  launchId: string;
+  issuedAt: number;
+  expiresAt: number;
+  primaryAsset: SimulationAsset;
+  relatedAssets: SimulationAsset[];
+  character: CharacterCard | null;
+  persona: Persona;
+  scene: string;
+  contextBlocks: ContextBlock[];
+  relationshipState: import('../relationships/schema.js').RelationshipState;
+  model: string;
+  generationGrant: string;
+};
+
+export type ClientLaunchPackage = Omit<OrbisLaunchPackage, 'generationGrant'>;
 
 export type PerceptionResult = {
   input: string;

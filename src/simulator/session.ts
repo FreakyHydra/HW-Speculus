@@ -1,4 +1,5 @@
-import type { DiagnosticsSnapshot, CharacterCard, Persona, ProviderSettings, TranscriptMessage } from '../runtime/schema/types';
+import { resolveSimulationSubject } from '../runtime/schema/launch-package';
+import type { DiagnosticsSnapshot, CharacterCard, ClientLaunchPackage, Persona, ProviderSettings, TranscriptMessage } from '../runtime/schema/types';
 import type { RelationshipState } from '../runtime/relationships/schema';
 
 export const SESSION_VERSION = 1 as const;
@@ -6,6 +7,7 @@ export const SESSION_VERSION = 1 as const;
 export type SimulatorSession = {
   version: typeof SESSION_VERSION;
   id: string;
+  launchPackage: ClientLaunchPackage | null;
   character: CharacterCard | null;
   persona: Persona | null;
   scene: string;
@@ -21,18 +23,20 @@ export type SimulatorSession = {
   updatedAt: number;
 };
 
-export function createSession(now = Date.now()): SimulatorSession {
+export function createSession(now = Date.now(), launchPackage: ClientLaunchPackage | null = null): SimulatorSession {
+  const character = launchPackage ? resolveSimulationSubject(launchPackage) : null;
   return {
     version: SESSION_VERSION,
     id: `simulation:${now.toString(36)}`,
-    character: null,
-    persona: null,
-    scene: '',
+    launchPackage,
+    character,
+    persona: launchPackage?.persona ?? null,
+    scene: launchPackage?.scene ?? '',
     transcript: [],
-    relationships: {},
+    relationships: launchPackage?.relationshipState ?? {},
     diagnostics: [],
     settings: {
-      provider: { kind: 'mock', model: 'speculus-deterministic', baseUrl: '', temperature: 0.8, maxTokens: 850 },
+      provider: { kind: launchPackage ? 'orbis' : 'mock', model: launchPackage?.model ?? 'speculus-deterministic', temperature: 0.8, maxTokens: 850 },
       crtMotion: true,
     },
     nextTurnNumber: 1,
