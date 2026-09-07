@@ -91,6 +91,14 @@ export function App() {
 
   const source = session.launchPackage!.primaryAsset;
   const updateScene = (scene: string) => setSession((current) => current ? { ...current, scene, updatedAt: Date.now() } : current);
+  const endSimulation = () => {
+    clearSession();
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.assign(`https://lib.thehowlingwhispers.com/asset/${encodeURIComponent(source.id)}`);
+  };
 
   return <main className={`terminal-frame ${session.settings.crtMotion ? '' : 'motion-off'}`}>
     <div className="screen-noise" aria-hidden="true" />
@@ -137,12 +145,7 @@ export function App() {
         </form>
         {error && <div className="error-line" role="alert">FAULT: {error}</div>}
         <footer className="terminal-actions">
-          <button className="terminal-button" disabled={busy} onClick={() => {
-            clearSession();
-            setSession(null);
-            setBooting(true);
-            setBoot({ status: 'error', error: 'SIMULATION MEDIUM EJECTED.' });
-          }}>END SIMULATION</button>
+          <button className="terminal-button" disabled={busy} onClick={endSimulation}>END SIMULATION</button>
           <span>SESSION MEDIUM: ACTIVE</span>
         </footer>
       </section>
