@@ -10,6 +10,17 @@ function launchPackage(overrides: Record<string, unknown> = {}) {
     launchId: 'launch-test-001',
     issuedAt: now,
     expiresAt: now + 60_000,
+    catalog: {
+      code: 'SPC-C-KD41827',
+      prefix: 'C',
+      plate: 'KD41827',
+      generation: 1,
+      registryNumber: 27,
+      classRegistryNumber: 2,
+      classification: 'CHARACTER',
+      createdAt: '2026-09-08T00:00:00.000Z',
+      status: 'active',
+    },
     primaryAsset: { id: character.id, revision: 'rev-7', type: 'character', name: character.name, summary: character.description, data: { source: 'orbis' } },
     relatedAssets: [],
     character,
@@ -28,6 +39,8 @@ describe('Orbis launch package', () => {
     const parsed = parseOrbisLaunchPackage(launchPackage());
     const safe = clientLaunchPackage(parsed);
     expect(safe.primaryAsset.revision).toBe('rev-7');
+    expect(safe.catalog?.code).toBe('SPC-C-KD41827');
+    expect(safe.catalog?.registryNumber).toBe(27);
     expect(safe).not.toHaveProperty('generationGrant');
     expect(JSON.stringify(safe)).not.toContain('opaque-generation-grant');
   });
@@ -37,10 +50,33 @@ describe('Orbis launch package', () => {
     expect(() => parseOrbisLaunchPackage(launchPackage({ primaryAsset: { id: 'wrong', revision: '1', type: 'character', name: 'Wrong', summary: '', data: {} } }))).toThrow(/does not match/i);
   });
 
+  it('rejects malformed and reserved SPC registry identities', () => {
+    expect(() => parseOrbisLaunchPackage(launchPackage({
+      catalog: {
+        code: 'SPC-C-AA68696', prefix: 'C', plate: 'AA68696', generation: 1,
+        registryNumber: 27, classRegistryNumber: 2, classification: 'CHARACTER',
+        createdAt: '2026-09-08T00:00:00.000Z', status: 'active',
+      },
+    }))).toThrow(/reserved/i);
+
+    expect(() => parseOrbisLaunchPackage(launchPackage({
+      catalog: {
+        code: 'SPC-C-KD41827', prefix: 'C', plate: 'KD41827', generation: 2,
+        registryNumber: 27, classRegistryNumber: 2, classification: 'CHARACTER',
+        createdAt: '2026-09-08T00:00:00.000Z', status: 'active',
+      },
+    }))).toThrow(/does not match/i);
+  });
+
   it('boots a packaged world through a narrator subject without manual imports', () => {
     const parsed = parseOrbisLaunchPackage(launchPackage({
       primaryAsset: { id: 'world:bitterroot', revision: '12', type: 'world', name: 'Bitterroot', summary: 'A dangerous wilderness.', data: { humans: false } },
       character: null,
+      catalog: {
+        code: 'SPC-W-BX80314', prefix: 'W', plate: 'BX80314', generation: 1,
+        registryNumber: 1, classRegistryNumber: 1, classification: 'WORLD',
+        createdAt: '2026-09-08T00:00:00.000Z', status: 'active',
+      },
     }));
     const safe = clientLaunchPackage(parsed);
     expect(resolveSimulationSubject(safe).systemPrompt).toContain('simulation narrator');
