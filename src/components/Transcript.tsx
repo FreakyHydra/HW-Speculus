@@ -17,7 +17,13 @@ export function Transcript(props: {
   onDelete: (message: TranscriptMessage) => void;
 }) {
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ behavior: 'smooth' }), [props.messages.length]);
+
+  useEffect(() => {
+    const node = end.current;
+    if (!node || typeof node.scrollIntoView !== 'function') return;
+    node.scrollIntoView({ behavior: 'smooth' });
+  }, [props.messages.length]);
+
   return <div className="transcript" aria-live="polite">
     {props.messages.length === 0 && <div className="empty-state">NO TRANSCRIPT. LOAD SUBJECT AND PERSONA, THEN BEGIN TEST.</div>}
     {props.messages.map((message) => <article className={`message ${message.sender}`} key={message.id}>
