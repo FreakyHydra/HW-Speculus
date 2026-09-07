@@ -49,13 +49,18 @@ export type SimulationAsset = {
   data: unknown;
 };
 
+export type SpeculusCatalogStatus = 'active' | 'archived' | 'retired' | 'sealed' | 'legacy';
+
 export type SpeculusCatalogIdentity = {
   code: string;
   prefix: string;
+  plate: string;
   generation: number;
-  series: string;
-  number: number;
+  registryNumber: number;
+  classRegistryNumber: number;
   classification: string;
+  createdAt: string;
+  status: SpeculusCatalogStatus;
 };
 
 export type ContextBlock = { id: string; title: string; content: string };
