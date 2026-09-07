@@ -22,10 +22,15 @@ const personaSchema = z.object({
 });
 
 const catalogSchema = z.object({
-  code: z.string().regex(/^SPC-[A-Z][0-9]{3}$/),
+  code: z.string().regex(/^(?:SPC|SPC#[1-9][0-9]*)-[A-Z]-[A-Z]{2}[0-9]{5}$/),
   prefix: z.string().regex(/^[A-Z]$/),
-  number: z.number().int().min(0).max(999),
+  plate: z.string().regex(/^[A-Z]{2}[0-9]{5}$/),
+  generation: z.number().int().positive(),
+  registryNumber: z.number().int().positive(),
+  classRegistryNumber: z.number().int().positive(),
   classification: z.string().trim().min(1).max(80),
+  createdAt: z.string().trim().min(10).max(64),
+  status: z.enum(['active', 'archived', 'retired', 'sealed']),
 });
 
 export const orbisLaunchPackageSchema = z.object({
@@ -50,8 +55,11 @@ export const orbisLaunchPackageSchema = z.object({
     context.addIssue({ code: 'custom', message: 'Primary character identity does not match the packaged character.' });
   }
   if (value.catalog) {
-    const expected = `SPC-${value.catalog.prefix}${String(value.catalog.number).padStart(3, '0')}`;
-    if (value.catalog.code !== expected) context.addIssue({ code: 'custom', message: 'Speculus catalogue code does not match its prefix and number.' });
+    const expected = value.catalog.generation === 1
+      ? `SPC-${value.catalog.prefix}-${value.catalog.plate}`
+      : `SPC#${value.catalog.generation}-${value.catalog.prefix}-${value.catalog.plate}`;
+    if (value.catalog.code !== expected) context.addIssue({ code: 'custom', message: 'Speculus registry code does not match its class, generation, and plate.' });
+    if (value.catalog.plate === 'AA68696') context.addIssue({ code: 'custom', message: 'Reserved Speculus registry plate was issued to an asset.' });
   }
 });
 
@@ -75,14 +83,27 @@ function fallbackClass(asset: SimulationAsset) {
 
 function fallbackCatalog(asset: SimulationAsset): SpeculusCatalogIdentity {
   const { prefix, classification } = fallbackClass(asset);
-  const compactId = asset.id.replace(/[^0-9a-f]/gi, '');
-  const seed = Number.parseInt(compactId.slice(0, 8), 16);
-  const number = Number.isFinite(seed) ? seed % 1000 : 0;
+  const compactId = asset.id.replace(/[^0-9a-f]/gi, '').padEnd(16, '0');
+  const seedA = Number.parseInt(compactId.slice(0, 8), 16) || 0;
+  const seedB = Number.parseInt(compactId.slice(8, 16), 16) || seedA;
+  const first = String.fromCharCode(65 + (seedA % 26));
+  const second = String.fromCharCode(65 + (Math.floor(seedA / 26) % 26));
+  let number = (seedB % 99999) + 1;
+  let plate = `${first}${second}${String(number).padStart(5, '0')}`;
+  if (plate === 'AA68696') {
+    number = number === 99999 ? 1 : number + 1;
+    plate = `${first}${second}${String(number).padStart(5, '0')}`;
+  }
   return {
-    code: `SPC-${prefix}${String(number).padStart(3, '0')}`,
+    code: `SPC-${prefix}-${plate}`,
     prefix,
-    number,
+    plate,
+    generation: 1,
+    registryNumber: 0,
+    classRegistryNumber: 0,
     classification,
+    createdAt: '',
+    status: 'legacy',
   };
 }
 
