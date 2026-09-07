@@ -4,7 +4,8 @@ type BootStatus = 'receiving' | 'ready' | 'error';
 
 export function BootScreen(props: { status: BootStatus; assetName?: string; error?: string; onComplete: () => void }) {
   const lines = useMemo(() => {
-    const head = ['SPECULUS FIELD TERMINAL', 'SYSTEM DATE: 1982', '', 'MEMORY CHECK ........ OK', 'SIMULATION CORE ..... OK'];
+    const systemDate = new Date().toISOString().slice(0, 10);
+    const head = ['SPECULUS FIELD TERMINAL', `SYSTEM DATE: ${systemDate}`, `SYSTEM VERSION: ${__SPECULUS_UPDATE_DATE__}`, '', 'MEMORY CHECK ........ OK', 'SIMULATION CORE ..... OK'];
     if (props.status === 'receiving') return [...head, 'ORBIS DATA BUS ...... SEARCHING', '', 'AWAITING SYSTEM MEDIUM...'];
     if (props.status === 'error') return [
       ...head,
