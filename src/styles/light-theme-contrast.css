@@ -1,0 +1,45 @@
+:root[data-theme='light'] {
+  --text-soft: #22384e;
+  --muted: #425970;
+  --muted-strong: #2e465d;
+  --blue: #315f86;
+  --blue-bright: #214f78;
+  --player: #1d527d;
+  --thought: #345875;
+  --diagnostic: #193b55;
+}
+
+:root[data-theme='light'] .subject-panel dt,
+:root[data-theme='light'] .micro-label,
+:root[data-theme='light'] .field-label,
+:root[data-theme='light'] .message-meta,
+:root[data-theme='light'] .terminal-actions,
+:root[data-theme='light'] .chassis-footer,
+:root[data-theme='light'] .diagnostic-turn__meta {
+  color: var(--muted-strong);
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme='auto'] {
+    --text-soft: #22384e;
+    --muted: #425970;
+    --muted-strong: #2e465d;
+    --blue: #315f86;
+    --blue-bright: #214f78;
+    --player: #1d527d;
+    --thought: #345875;
+    --diagnostic: #193b55;
+  }
+
+  :root[data-theme='auto'] .subject-panel dt,
+  :root[data-theme='auto'] .micro-label,
+  :root[data-theme='auto'] .field-label,
+  :root[data-theme='auto'] .message-meta,
+  :root[data-theme='auto'] .terminal-actions,
+  :root[data-theme='auto'] .chassis-footer,
+  :root[data-theme='auto'] .diagnostic-turn__meta {
+    color: var(--muted-strong);
+    font-weight: 600;
+  }
+}
