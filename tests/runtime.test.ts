@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compileContext } from '../src/runtime/generation/compile-context';
-import { isRoleplayFormattingStable, normalizeRoleplayReply } from '../src/runtime/generation/format';
+import { isRoleplayFormattingStable, normalizeRoleplayReply, stripModelControlTokens } from '../src/runtime/generation/format';
 import { resolveActiveCast } from '../src/runtime/generation/perception';
 import { commitRelationshipEvent, getRelationship } from '../src/runtime/relationships/core';
 import { importCharacterCard, importPersona } from '../src/runtime/schema/importers';
@@ -65,6 +65,31 @@ describe('runtime foundations', () => {
     expect(normalizeRoleplayReply(source)).toBe(source);
     expect(isRoleplayFormattingStable(source)).toBe(true);
     expect(normalizeRoleplayReply('Hello there.')).toBe('"Hello there."');
+  });
+
+  it('strips provider control tags before storage and history compilation', () => {
+    const dirty = '*Peony checks the gauge.* "Steady."\n</assistant>';
+    expect(stripModelControlTokens(dirty)).toBe('*Peony checks the gauge.* "Steady."\n');
+    expect(normalizeRoleplayReply(dirty)).toBe('*Peony checks the gauge.* "Steady."');
+
+    const relationship = getRelationship({}, character.id, persona.id);
+    const compiled = compileContext({
+      character,
+      persona,
+      scene: 'Inside the test vault.',
+      relationship,
+      transcript: [{
+        id: 'turn:1:character',
+        turnId: 'turn:1',
+        sender: 'character',
+        speaker: character.name,
+        text: dirty,
+        timestamp: 1,
+      }],
+    });
+    const history = compiled.prompt.match(/<history>\n([\s\S]*?)\n<\/history>/)?.[1] ?? '';
+    expect(history).toContain('*Peony checks the gauge.* "Steady."');
+    expect(history).not.toContain('</assistant>');
   });
 
   it('keys and replaces relationship events by stable turn ID', () => {
