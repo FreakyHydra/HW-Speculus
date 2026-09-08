@@ -1,0 +1,42 @@
+.terminal-panel > .live-transcript {
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+  overflow: auto;
+  padding: 14px 16px 18px;
+}
+
+.live-transcript .message {
+  margin-bottom: 14px;
+  padding: 8px 12px 10px;
+  background: transparent;
+  border-left: 2px solid var(--line-strong);
+}
+
+.live-transcript .message.player {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 5%, transparent);
+}
+
+.live-transcript .message-meta {
+  margin-bottom: 6px;
+  color: var(--muted-strong);
+  font-size: .62rem;
+  letter-spacing: .08em;
+}
+
+.live-transcript .message-text {
+  font-size: 1.03rem;
+  line-height: 1.7;
+}
+
+.live-transcript .message-actions {
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .terminal-panel > .live-transcript {
+    height: auto;
+    max-height: 60vh;
+  }
+}
