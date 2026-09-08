@@ -1,8 +1,15 @@
 import { useEffect, useRef } from 'react';
 import type { TranscriptMessage } from '../runtime/schema/types';
 
+function cleanDisplayText(text: string): string {
+  return text
+    .replace(/<\/?(?:assistant|user|system)>/gi, '')
+    .replace(/<\|(?:assistant|user|system)\|>/gi, '')
+    .trim();
+}
+
 function RenderedMessage({ text }: { text: string }) {
-  const tokens = text.split(/(\*[^*]+\*|"[^"]+"|\[[^\]]+\])/g).filter(Boolean);
+  const tokens = cleanDisplayText(text).split(/(\*[^*]+\*|"[^"]+"|\[[^\]]+\])/g).filter(Boolean);
   return <>{tokens.map((token, index) => {
     if (token.startsWith('*')) return <em key={index}>{token.slice(1, -1)}</em>;
     if (token.startsWith('[')) return <span className="inner-voice" key={index}>{token}</span>;
@@ -24,10 +31,10 @@ export function Transcript(props: {
     node.scrollIntoView({ behavior: 'smooth' });
   }, [props.messages.length]);
 
-  return <div className="transcript" aria-live="polite">
+  return <div className="transcript live-transcript" aria-live="polite">
     {props.messages.length === 0 && <div className="empty-state">NO TRANSCRIPT. LOAD SUBJECT AND PERSONA, THEN BEGIN TEST.</div>}
     {props.messages.map((message) => <article className={`message ${message.sender}`} key={message.id}>
-      <div className="message-meta"><span>{message.speaker}</span><span>{message.id}</span></div>
+      <div className="message-meta"><span>{message.speaker}</span></div>
       <div className="message-text"><RenderedMessage text={message.text} /></div>
       {message.sender === 'character' && !message.id.startsWith('opening:') && <div className="message-actions">
         <button disabled={props.busy} onClick={() => props.onReroll(message)}>REROLL</button>
