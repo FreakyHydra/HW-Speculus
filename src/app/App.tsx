@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { BootScreen } from '../components/BootScreen';
 import { DiagnosticsPanel } from '../components/DiagnosticsPanel';
 import { Transcript } from '../components/Transcript';
@@ -12,6 +12,33 @@ import { clearSession, loadSession, saveSession } from '../storage/session-stora
 
 type BootState = { status: 'receiving' | 'ready' | 'error'; error?: string };
 type ThemeMode = 'dark' | 'light' | 'auto';
+type SplitterSide = 'left' | 'right';
+type PanelLayout = { left: number; right: number };
+
+const PANEL_LAYOUT_KEY = 'speculus-panel-layout';
+const DEFAULT_PANEL_LAYOUT: PanelLayout = { left: 370, right: 500 };
+const MIN_LEFT_PANEL = 220;
+const MAX_LEFT_PANEL = 620;
+const MIN_RIGHT_PANEL = 300;
+const MAX_RIGHT_PANEL = 720;
+const MIN_TERMINAL_PANEL = 420;
+const SPLITTER_SPACE = 16;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function loadPanelLayout(): PanelLayout {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(PANEL_LAYOUT_KEY) ?? '{}') as Partial<PanelLayout>;
+    return {
+      left: typeof parsed.left === 'number' ? clamp(parsed.left, MIN_LEFT_PANEL, MAX_LEFT_PANEL) : DEFAULT_PANEL_LAYOUT.left,
+      right: typeof parsed.right === 'number' ? clamp(parsed.right, MIN_RIGHT_PANEL, MAX_RIGHT_PANEL) : DEFAULT_PANEL_LAYOUT.right,
+    };
+  } catch {
+    return DEFAULT_PANEL_LAYOUT;
+  }
+}
 
 async function claimLaunch(code: string): Promise<ClientLaunchPackage> {
   const response = await fetch(`/api/launch/${encodeURIComponent(code)}`);
@@ -31,11 +58,18 @@ export function App() {
     const saved = window.localStorage.getItem('speculus-theme');
     return saved === 'light' || saved === 'auto' || saved === 'dark' ? saved : 'dark';
   });
+  const [panelLayout, setPanelLayout] = useState<PanelLayout>(loadPanelLayout);
+  const [dragging, setDragging] = useState<SplitterSide | null>(null);
+  const workstationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem('speculus-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    window.localStorage.setItem(PANEL_LAYOUT_KEY, JSON.stringify(panelLayout));
+  }, [panelLayout]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +108,69 @@ export function App() {
   }, [boot.status]);
   useEffect(() => { if (session) saveSession(session); }, [session]);
 
+  const resizePanel = useCallback((side: SplitterSide, requestedWidth: number) => {
+    const workstation = workstationRef.current;
+    if (!workstation) return;
+    const available = workstation.getBoundingClientRect().width;
+    setPanelLayout((current) => {
+      if (side === 'left') {
+        const max = Math.max(MIN_LEFT_PANEL, Math.min(MAX_LEFT_PANEL, available - current.right - MIN_TERMINAL_PANEL - SPLITTER_SPACE));
+        return { ...current, left: clamp(requestedWidth, MIN_LEFT_PANEL, max) };
+      }
+      const max = Math.max(MIN_RIGHT_PANEL, Math.min(MAX_RIGHT_PANEL, available - current.left - MIN_TERMINAL_PANEL - SPLITTER_SPACE));
+      return { ...current, right: clamp(requestedWidth, MIN_RIGHT_PANEL, max) };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!dragging) return;
+    document.body.classList.add('speculus-panel-resizing');
+    const move = (event: PointerEvent) => {
+      const rect = workstationRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      resizePanel(dragging, dragging === 'left' ? event.clientX - rect.left : rect.right - event.clientX);
+    };
+    const stop = () => setDragging(null);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop, { once: true });
+    window.addEventListener('pointercancel', stop, { once: true });
+    return () => {
+      document.body.classList.remove('speculus-panel-resizing');
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+    };
+  }, [dragging, resizePanel]);
+
+  const startResize = (side: SplitterSide, event: ReactPointerEvent<HTMLDivElement>) => {
+    if (window.matchMedia('(max-width: 1050px)').matches) return;
+    event.preventDefault();
+    setDragging(side);
+  };
+
+  const resetPanel = (side: SplitterSide) => {
+    resizePanel(side, DEFAULT_PANEL_LAYOUT[side]);
+  };
+
+  const resizeWithKeyboard = (side: SplitterSide, event: ReactKeyboardEvent<HTMLDivElement>) => {
+    let delta = 0;
+    if (side === 'left') {
+      if (event.key === 'ArrowLeft') delta = -20;
+      if (event.key === 'ArrowRight') delta = 20;
+    } else {
+      if (event.key === 'ArrowLeft') delta = 20;
+      if (event.key === 'ArrowRight') delta = -20;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      resetPanel(side);
+      return;
+    }
+    if (!delta) return;
+    event.preventDefault();
+    resizePanel(side, panelLayout[side] + delta);
+  };
+
   const submit = useCallback(async (text: string, reroll?: TranscriptMessage) => {
     if (!session) return;
     setBusy(true);
@@ -110,6 +207,10 @@ export function App() {
     }
     window.location.assign(`https://lib.thehowlingwhispers.com/asset/${encodeURIComponent(source.id)}`);
   };
+  const workstationStyle = {
+    '--package-panel-width': `${panelLayout.left}px`,
+    '--diagnostics-panel-width': `${panelLayout.right}px`,
+  } as CSSProperties;
 
   return <main className={`terminal-frame ${session.settings.crtMotion ? '' : 'motion-off'}`}>
     <div className="screen-noise" aria-hidden="true" />
@@ -118,7 +219,7 @@ export function App() {
       <div className="status-bank"><span><i className="lamp lamp-green" />CORE</span><span><i className="lamp lamp-green" />ORBIS</span><span><i className="lamp lamp-green" />MODEL</span></div>
     </header>
 
-    <div className="workstation">
+    <div ref={workstationRef} className={`workstation resizable-workstation ${dragging ? 'is-resizing' : ''}`} style={workstationStyle}>
       <aside className="panel subject-panel">
         <header className="panel-header"><span>PACKAGE</span><span>VER. 1</span></header>
         <dl>
@@ -152,6 +253,21 @@ export function App() {
         </section>
       </aside>
 
+      <div
+        className="panel-splitter panel-splitter--left"
+        role="separator"
+        aria-label="Resize package and terminal panels"
+        aria-orientation="vertical"
+        aria-valuemin={MIN_LEFT_PANEL}
+        aria-valuemax={MAX_LEFT_PANEL}
+        aria-valuenow={Math.round(panelLayout.left)}
+        tabIndex={0}
+        title="Drag to resize. Double-click or press Home to reset."
+        onPointerDown={(event) => startResize('left', event)}
+        onDoubleClick={() => resetPanel('left')}
+        onKeyDown={(event) => resizeWithKeyboard('left', event)}
+      ><span aria-hidden="true" /></div>
+
       <section className="panel terminal-panel">
         <header className="panel-header"><span>TERMINAL</span><span>CHANNEL A</span></header>
         <Transcript messages={session.transcript} busy={busy} onReroll={(message) => {
@@ -169,6 +285,21 @@ export function App() {
           <span>SESSION MEDIUM: ACTIVE</span>
         </footer>
       </section>
+
+      <div
+        className="panel-splitter panel-splitter--right"
+        role="separator"
+        aria-label="Resize terminal and diagnostics panels"
+        aria-orientation="vertical"
+        aria-valuemin={MIN_RIGHT_PANEL}
+        aria-valuemax={MAX_RIGHT_PANEL}
+        aria-valuenow={Math.round(panelLayout.right)}
+        tabIndex={0}
+        title="Drag to resize. Double-click or press Home to reset."
+        onPointerDown={(event) => startResize('right', event)}
+        onDoubleClick={() => resetPanel('right')}
+        onKeyDown={(event) => resizeWithKeyboard('right', event)}
+      ><span aria-hidden="true" /></div>
 
       <DiagnosticsPanel session={session} />
     </div>
