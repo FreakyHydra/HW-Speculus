@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { stripModelControlTokens } from '../runtime/generation/format';
 import type { DiagnosticsSnapshot } from '../runtime/schema/types';
 import type { SimulatorSession } from '../simulator/session';
 
@@ -30,11 +31,15 @@ function groupTranscript(session: SimulatorSession): TurnGroup[] {
   return [...groups.values()];
 }
 
+function cleanTranscriptText(value: string): string {
+  return stripModelControlTokens(value).trim();
+}
+
 function printableTurns(groups: TurnGroup[]) {
   return groups.map((group) => {
     const heading = group.turnId.replace('turn:', 'TURN ');
     const messages = group.messages.map((message) =>
-      `${message.sender.toUpperCase()} · ${message.speaker}\n${message.text}`,
+      `${message.sender.toUpperCase()} · ${message.speaker}\n${cleanTranscriptText(message.text)}`,
     ).join('\n\n');
     return `${heading}\n${messages}`;
   }).join('\n\n========================================\n\n');
@@ -64,7 +69,7 @@ export function DiagnosticsPanel({ session }: { session: SimulatorSession }) {
         <header>{group.turnId.replace('turn:', 'TURN ')}</header>
         {group.messages.map((message) => <article className={`diagnostic-turn__message ${message.sender}`} key={message.id}>
           <div className="diagnostic-turn__meta"><strong>{message.speaker}</strong><span>{message.sender.toUpperCase()}</span></div>
-          <div className="diagnostic-turn__text">{message.text}</div>
+          <div className="diagnostic-turn__text">{cleanTranscriptText(message.text)}</div>
         </article>)}
       </section>)}
     </div> : <pre tabIndex={0}>{jsonOutput}</pre>}
