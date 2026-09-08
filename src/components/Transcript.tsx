@@ -1,15 +1,9 @@
 import { useEffect, useRef } from 'react';
+import { stripModelControlTokens } from '../runtime/generation/format';
 import type { TranscriptMessage } from '../runtime/schema/types';
 
-function cleanDisplayText(text: string): string {
-  return text
-    .replace(/<\/?(?:assistant|user|system)>/gi, '')
-    .replace(/<\|(?:assistant|user|system)\|>/gi, '')
-    .trim();
-}
-
 function RenderedMessage({ text }: { text: string }) {
-  const tokens = cleanDisplayText(text).split(/(\*[^*]+\*|"[^"]+"|\[[^\]]+\])/g).filter(Boolean);
+  const tokens = stripModelControlTokens(text).trim().split(/(\*[^*]+\*|"[^"]+"|\[[^\]]+\])/g).filter(Boolean);
   return <>{tokens.map((token, index) => {
     if (token.startsWith('*')) return <em key={index}>{token.slice(1, -1)}</em>;
     if (token.startsWith('[')) return <span className="inner-voice" key={index}>{token}</span>;
