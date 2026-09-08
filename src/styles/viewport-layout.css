@@ -1,0 +1,153 @@
+/*
+ * Viewport cage for the Speculus workstation.
+ * Browser zoom changes the CSS viewport size, so the shell and every scrollable
+ * panel must derive its available space from that viewport instead of content height.
+ */
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+.terminal-frame {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.workstation {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.panel {
+  min-height: 0;
+  max-height: 100%;
+}
+
+.subject-panel {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.terminal-panel {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: 32px minmax(0, 1fr) auto auto auto;
+}
+
+.terminal-panel > .live-transcript {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.composer,
+.terminal-actions,
+.error-line {
+  min-height: 0;
+}
+
+.diagnostics-panel {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: 32px auto auto minmax(0, 1fr) auto;
+}
+
+.diagnostics-panel > pre,
+.diagnostic-turns {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/*
+ * At higher browser zoom levels the CSS viewport becomes narrower. Let the
+ * existing responsive layout reflow, and let the page itself scroll rather than
+ * clipping an entire panel below the fold.
+ */
+@media (max-width: 1050px) {
+  body {
+    overflow: auto;
+  }
+
+  .terminal-frame {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
+    grid-template-rows: auto auto auto;
+  }
+
+  .workstation {
+    height: auto;
+    overflow: visible;
+    align-items: start;
+  }
+
+  .subject-panel {
+    max-height: 70vh;
+    max-height: 70dvh;
+  }
+
+  .terminal-panel {
+    height: 70vh;
+    height: 70dvh;
+    min-height: 440px;
+  }
+
+  .diagnostics-panel {
+    height: 62vh;
+    height: 62dvh;
+    min-height: 420px;
+  }
+
+  .diagnostics-panel > pre,
+  .diagnostic-turns {
+    max-height: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .subject-panel {
+    max-height: none;
+  }
+
+  .terminal-panel {
+    height: 72vh;
+    height: 72dvh;
+    min-height: 420px;
+  }
+
+  .diagnostics-panel {
+    height: 68vh;
+    height: 68dvh;
+    min-height: 400px;
+  }
+
+  .terminal-panel > .live-transcript {
+    max-height: none;
+  }
+}
