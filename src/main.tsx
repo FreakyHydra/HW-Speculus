@@ -6,5 +6,6 @@ import './styles/resizable-panels.css';
 import './styles/diagnostic-turns.css';
 import './styles/live-transcript.css';
 import './styles/light-theme-contrast.css';
+import './styles/viewport-layout.css';
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
