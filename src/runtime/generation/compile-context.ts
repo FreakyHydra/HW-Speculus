@@ -1,5 +1,6 @@
 import { relationshipLabel, type getRelationship } from '../relationships/core';
 import type { CharacterCard, ClientLaunchPackage, CompiledContext, Persona, TranscriptMessage } from '../schema/types';
+import { stripModelControlTokens } from './format';
 
 type Relationship = ReturnType<typeof getRelationship>;
 
@@ -65,7 +66,7 @@ export function compileContext(input: {
     sections.splice(2, 0, ...additions);
   }
   if (input.reroll) sections.push(['reroll', 'Generate a genuinely different reaction from the same preceding player turn while preserving canon and continuity.']);
-  const history = input.transcript.slice(-20).map((message) => `${message.speaker}: ${message.text}`).join('\n');
+  const history = input.transcript.slice(-20).map((message) => `${message.speaker}: ${stripModelControlTokens(message.text).trim()}`).join('\n');
   sections.push(['history', history || '(no prior messages)']);
   const prompt = `${sections.map(([name, value]) => `<${name}>\n${value}\n</${name}>`).join('\n\n')}\n\n<assistant>\n${character.name}:`;
   return {
