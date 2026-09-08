@@ -4,6 +4,12 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export function stripModelControlTokens(value: string): string {
+  return value
+    .replace(/<\s*\/?\s*(?:assistant|user|system)\s*>/gi, '')
+    .replace(/<\s*\|\s*(?:assistant|user|system)\s*\|\s*>/gi, '');
+}
+
 export function stripEchoedPlayerTurn(reply: string, playerTurn: string): string {
   const words = (value: string) => [...value.toLocaleLowerCase('en-US').matchAll(/[\p{L}\p{N}]+/gu)].map((match) => match[0]);
   const source = words(playerTurn);
@@ -16,13 +22,10 @@ export function stripEchoedPlayerTurn(reply: string, playerTurn: string): string
 }
 
 function cleanModelArtifacts(reply: string, characterName = '', playerName = ''): string {
-  let value = reply;
+  let value = stripModelControlTokens(reply);
 
-  // Model-side metadata/control tokens are useful for provider diagnostics but must never enter the live transcript.
-  value = value
-    .replace(/<\/?(?:assistant|user|system)>/gi, '')
-    .replace(/<\|(?:assistant|user|system)\|>/gi, '')
-    .replace(/^\s*Emotion\s*:\s*[^\r\n]*(?:\r?\n|$)/gim, '');
+  // Model-side metadata is useful for diagnostics but should never appear in the chat transcript.
+  value = value.replace(/^\s*Emotion\s*:\s*[^\r\n]*(?:\r?\n|$)/gim, '');
 
   // The transcript already renders the active speaker. Preserve the prose after any repeated character label.
   if (characterName) {
@@ -45,9 +48,7 @@ function cleanModelArtifacts(reply: string, characterName = '', playerName = '')
 }
 
 export function normalizeRoleplayReply(raw: string, latestPlayerTurn = '', characterName = '', playerName = ''): string {
-  let value = stripEchoedPlayerTurn(raw.trim(), latestPlayerTurn)
-    .replace(/<\/?(?:assistant|user|system)>/gi, '')
-    .replace(/<\|(?:assistant|user|system)\|>/gi, '')
+  let value = stripEchoedPlayerTurn(stripModelControlTokens(raw.trim()), latestPlayerTurn)
     .replace(/^\s*(?:assistant|character)\s*:\s*/i, '')
     .replace(/[“”]/g, '"')
     .replace(/\n{3,}/g, '\n\n')
