@@ -1,0 +1,84 @@
+.diagnostic-turns {
+  margin: 0 8px 8px;
+  padding: 8px;
+  overflow: auto;
+  max-height: calc(100vh - 260px);
+  border: 1px solid var(--line);
+  background: var(--surface-input);
+  scrollbar-color: var(--line-strong) var(--surface-input);
+}
+
+.diagnostic-turns__empty {
+  padding: 18px 10px;
+  color: var(--muted);
+  font-size: .68rem;
+  text-align: center;
+  letter-spacing: .08em;
+}
+
+.diagnostic-turn {
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.diagnostic-turn:last-child { margin-bottom: 0; }
+
+.diagnostic-turn.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 2px 0 var(--accent);
+}
+
+.diagnostic-turn > header {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-raised);
+  color: var(--accent-bright);
+  font-size: .63rem;
+  letter-spacing: .12em;
+}
+
+.diagnostic-turn__message {
+  padding: 9px;
+  border-bottom: 1px dotted var(--line);
+}
+
+.diagnostic-turn__message:last-child { border-bottom: 0; }
+
+.diagnostic-turn__message.player {
+  background: color-mix(in srgb, var(--blue) 7%, transparent);
+}
+
+.diagnostic-turn__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: .58rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.diagnostic-turn__meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-soft);
+  font-weight: normal;
+}
+
+.diagnostic-turn__message.player .diagnostic-turn__meta strong { color: var(--blue-bright); }
+
+.diagnostic-turn__text {
+  color: var(--diagnostic);
+  font: .72rem/1.55 "Courier New", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.diagnostic-turn__message.player .diagnostic-turn__text { color: var(--player); }
+
+@media (max-width: 1050px) {
+  .diagnostic-turns { max-height: 340px; }
+}
