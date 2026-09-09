@@ -312,10 +312,7 @@ export function App() {
         </form>
         {error && <div className="error-line" role="alert">FAULT: {error}</div>}
         <footer className="terminal-actions">
-          <button className="terminal-button" disabled={busy} onClick={exportSession}>EXPORT RAW</button>
-          <button className="terminal-button" disabled={busy} onClick={() => importSessionRef.current?.click()}>IMPORT RAW</button>
           <input ref={importSessionRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={(event) => void importSession(event.target.files?.[0])} />
-          <button className="terminal-button" disabled={busy} onClick={endSimulation}>END SIMULATION</button>
           <span>SESSION MEDIUM: ACTIVE</span>
         </footer>
       </section>
@@ -335,7 +332,13 @@ export function App() {
         onKeyDown={(event) => resizeWithKeyboard('right', event)}
       ><span aria-hidden="true" /></div>
 
-      <DiagnosticsPanel session={session} />
+      <DiagnosticsPanel
+        session={session}
+        busy={busy}
+        onExportRaw={exportSession}
+        onImportRaw={() => importSessionRef.current?.click()}
+        onExitSimulator={endSimulation}
+      />
     </div>
     <footer className="chassis-footer"><span>HOWLING WHISPERS RESEARCH DIVISION</span><span>ORBIS LINK / UNIT S-001</span></footer>
   </main>;
