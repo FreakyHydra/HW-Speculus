@@ -8,6 +8,7 @@ import { parseClientLaunchPackage, resolveCatalogIdentity } from '../runtime/sch
 import type { ClientLaunchPackage, TranscriptMessage } from '../runtime/schema/types';
 import { deleteCharacterTurn, runTurn } from '../simulator/engine';
 import { createSession, withOpeningMessage, type SimulatorSession } from '../simulator/session';
+import { exportRawSession, rawSessionFilename, resumeRawSession } from '../storage/session-transfer';
 import { clearSession, loadSession, saveSession } from '../storage/session-storage';
 
 type BootState = { status: 'receiving' | 'ready' | 'error'; error?: string };
@@ -61,6 +62,7 @@ export function App() {
   const [panelLayout, setPanelLayout] = useState<PanelLayout>(loadPanelLayout);
   const [dragging, setDragging] = useState<SplitterSide | null>(null);
   const workstationRef = useRef<HTMLDivElement>(null);
+  const importSessionRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -199,6 +201,35 @@ export function App() {
   const source = session.launchPackage!.primaryAsset;
   const catalog = resolveCatalogIdentity(session.launchPackage!);
   const updateScene = (scene: string) => setSession((current) => current ? { ...current, scene, updatedAt: Date.now() } : current);
+  const exportSession = () => {
+    try {
+      const blob = new Blob([exportRawSession(session)], { type: 'application/json' });
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = href;
+      anchor.download = rawSessionFilename(session);
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(href);
+      setError('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The raw session could not be exported.');
+    }
+  };
+  const importSession = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const raw = await file.text();
+      setSession((current) => current ? resumeRawSession(current, raw) : current);
+      setInput('');
+      setError('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'The raw session could not be imported.');
+    } finally {
+      if (importSessionRef.current) importSessionRef.current.value = '';
+    }
+  };
   const endSimulation = () => {
     clearSession();
     if (window.history.length > 1) {
@@ -281,6 +312,9 @@ export function App() {
         </form>
         {error && <div className="error-line" role="alert">FAULT: {error}</div>}
         <footer className="terminal-actions">
+          <button className="terminal-button" disabled={busy} onClick={exportSession}>EXPORT RAW</button>
+          <button className="terminal-button" disabled={busy} onClick={() => importSessionRef.current?.click()}>IMPORT RAW</button>
+          <input ref={importSessionRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={(event) => void importSession(event.target.files?.[0])} />
           <button className="terminal-button" disabled={busy} onClick={endSimulation}>END SIMULATION</button>
           <span>SESSION MEDIUM: ACTIVE</span>
         </footer>
