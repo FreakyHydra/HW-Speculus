@@ -15,6 +15,21 @@ A direct visit without an active package deliberately produces a 1982-style miss
 - Speculus seals that grant inside an HTTP-only server session and sends generation requests to the shared Orbis API.
 - Browser diagnostics expose safe provider metadata only.
 
+## Raw session export and resume
+
+The terminal provides **EXPORT RAW** and **IMPORT RAW** controls for portable roleplay continuation files.
+
+A raw session export preserves the authored scene, transcript, relationship state, diagnostics, turn counter, timestamps, and user-facing simulator settings. It deliberately does not export the temporary Orbis launch package, launch ID, expiry, generation grant, or provider credentials.
+
+To continue an old session later:
+
+1. Open the same source asset in Orbis and start a fresh Speculus simulation.
+2. Choose **IMPORT RAW** in Speculus.
+3. Select the previously exported `*-speculus-session.json` file.
+4. Speculus verifies that the export belongs to the same Orbis asset, restores the old simulation state, and keeps the fresh Orbis launch authorization and current model route.
+
+Importing a raw session into a different source asset is rejected rather than silently mixing two simulations.
+
 ## Start locally
 
 ```bash
