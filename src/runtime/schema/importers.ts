@@ -25,6 +25,7 @@ const personaSchema = z.object({
   description: z.string().max(50_000).optional(),
   persona: z.string().max(50_000).optional(),
   details: z.string().max(50_000).optional(),
+  pronouns: z.enum(['he/him', 'she/her', 'they/them', 'it/its']).nullable().optional(),
   kind: z.string().optional(),
   spec: z.string().optional(),
 }).passthrough();
@@ -64,7 +65,13 @@ export function importPersona(input: string | unknown): Persona {
   const parsed = personaSchema.safeParse(value);
   if (!parsed.success) throw new Error(`Persona import failed: ${parsed.error.issues[0]?.message ?? 'invalid persona data.'}`);
   const description = parsed.data.description ?? parsed.data.persona ?? parsed.data.details ?? '';
-  return { kind: 'persona', id: parsed.data.id ?? `persona:${stableSlug(parsed.data.name)}`, name: parsed.data.name, description };
+  return {
+    kind: 'persona',
+    id: parsed.data.id ?? `persona:${stableSlug(parsed.data.name)}`,
+    name: parsed.data.name,
+    description,
+    pronouns: parsed.data.pronouns ?? null,
+  };
 }
 
 export function createTemporaryPersona(name: string, description: string): Persona {
