@@ -11,6 +11,14 @@ type TurnGroup = {
   messages: SimulatorSession['transcript'];
 };
 
+type DiagnosticsPanelProps = {
+  session: SimulatorSession;
+  busy: boolean;
+  onExportRaw: () => void;
+  onImportRaw: () => void;
+  onExitSimulator: () => void;
+};
+
 function contentFor(tab: Exclude<Tab, 'TURNS'>, snapshot: DiagnosticsSnapshot | undefined, session: SimulatorSession): unknown {
   if (tab === 'RAW') return session;
   if (!snapshot) return { status: 'No generated turn has produced diagnostics yet.' };
@@ -45,7 +53,7 @@ function printableTurns(groups: TurnGroup[]) {
   }).join('\n\n========================================\n\n');
 }
 
-export function DiagnosticsPanel({ session }: { session: SimulatorSession }) {
+export function DiagnosticsPanel({ session, busy, onExportRaw, onImportRaw, onExitSimulator }: DiagnosticsPanelProps) {
   const [tab, setTab] = useState<Tab>('CONTEXT');
   const [selectedTurn, setSelectedTurn] = useState('');
   const snapshot = session.diagnostics.find((entry) => entry.turnId === selectedTurn) ?? session.diagnostics.at(-1);
@@ -73,6 +81,20 @@ export function DiagnosticsPanel({ session }: { session: SimulatorSession }) {
         </article>)}
       </section>)}
     </div> : <pre tabIndex={0}>{jsonOutput}</pre>}
-    <button className="terminal-button copy-button" onClick={() => void navigator.clipboard?.writeText(copyOutput)}>COPY BUFFER</button>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', margin: '0 8px 8px' }}>
+      <button
+        className="terminal-button"
+        style={{ gridColumn: '1 / -1' }}
+        onClick={() => void navigator.clipboard?.writeText(copyOutput)}
+      >COPY BUFFER</button>
+      <button className="terminal-button" disabled={busy} onClick={onExportRaw}>EXPORT RAW</button>
+      <button className="terminal-button" disabled={busy} onClick={onImportRaw}>IMPORT RAW</button>
+      <button
+        className="terminal-button"
+        style={{ gridColumn: '1 / -1' }}
+        disabled={busy}
+        onClick={onExitSimulator}
+      >EXIT SIMULATOR</button>
+    </div>
   </section>;
 }
