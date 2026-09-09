@@ -4,8 +4,8 @@
 
 This plan was written before implementation after inspecting:
 
-- `FreakyHydra/HW-Library` `dev` at `05bd0ba35fb41487eedf7cae54cefa617244bd4a` for its Vite, React, TypeScript, Express, and Vitest project shape.
-- `FreakyHydra/HowlingWhispers` `dev` at `e92df3da0772cd0aa852d2efdc70638c8ee8164b` for context compilation, perception, player-turn formatting, cast resolution, autonomy boundaries, world time, prose rules, relationship event recomputation, storage, and provider request handling.
+- `HowlingWhispers/HW-Library` `dev` at `05bd0ba35fb41487eedf7cae54cefa617244bd4a` for its Vite, React, TypeScript, Express, and Vitest project shape.
+- `HowlingWhispers/HW-Library` `dev` at `e92df3da0772cd0aa852d2efdc70638c8ee8164b` for context compilation, perception, player-turn formatting, cast resolution, autonomy boundaries, world time, prose rules, relationship event recomputation, storage, and provider request handling.
 
 Speculus is separately deployed, but it is not a standalone user destination. Orbis is the only normal launch surface. A direct visit contains no simulation package and deliberately halts like a 1982 terminal with no system medium.
 
