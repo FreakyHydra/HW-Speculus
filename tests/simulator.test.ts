@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProviderAdapter, ProviderRequest } from '../src/runtime/providers/types';
-import { deleteCharacterTurn, runTurn } from '../src/simulator/engine';
+import { deleteCharacterTurn, responseTokenBudget, runTurn } from '../src/simulator/engine';
 import { createSession, type SimulatorSession } from '../src/simulator/session';
 import { deserializeSession, serializeSession } from '../src/storage/session-storage';
 import { character, persona } from './fixtures';
@@ -15,7 +15,7 @@ class CapturingProvider implements ProviderAdapter {
 }
 
 function readySession(): SimulatorSession {
-  return { ...createSession(1000), character, persona, scene: 'A sealed workshop test.', settings: { provider: { kind: 'mock', model: 'test-model', temperature: .5, maxTokens: 300 }, crtMotion: false } };
+  return { ...createSession(1000), character, persona, scene: 'A sealed workshop test.', settings: { provider: { kind: 'mock', model: 'test-model', temperature: .5, maxTokens: 300 }, responseLength: 'adaptive', crtMotion: false } };
 }
 
 describe('simulator transaction', () => {
@@ -25,6 +25,27 @@ describe('simulator transaction', () => {
     expect(next.transcript.map((message) => message.sender)).toEqual(['player', 'character']);
     expect(next.diagnostics[0].compiledContext.prompt).toContain('Thank you for meeting me.');
     expect(next.diagnostics[0].provider.model).toBe('test-model');
+  });
+
+  it('scales output token budgets without letting short turns inherit the old long cap', async () => {
+    expect(responseTokenBudget('concise', 'Hello.')).toBe(240);
+    expect(responseTokenBudget('normal', 'Hello.')).toBe(520);
+    expect(responseTokenBudget('long', 'Hello.')).toBe(1000);
+    expect(responseTokenBudget('adaptive', 'Hello.')).toBe(220);
+
+    const provider = new CapturingProvider();
+    await runTurn(readySession(), 'Hello.', provider);
+    expect(provider.requests[0].maxTokens).toBe(220);
+    expect(provider.requests[0].prompt).toContain('Response length: ADAPTIVE.');
+  });
+
+  it('uses a live session response-length override immediately', async () => {
+    const provider = new CapturingProvider();
+    const session = readySession();
+    session.settings.responseLength = 'concise';
+    await runTurn(session, 'Tell me what you see.', provider);
+    expect(provider.requests[0].maxTokens).toBe(240);
+    expect(provider.requests[0].prompt).toContain('Response length: CONCISE.');
   });
 
   it('passes compiled context without giving the adapter session state', async () => {
@@ -62,6 +83,12 @@ describe('simulator transaction', () => {
     const next = await runTurn(readySession(), 'Hello.', new CapturingProvider());
     const raw = serializeSession(next);
     expect(deserializeSession(raw)).toEqual(next);
+  });
+
+  it('upgrades older stored sessions to adaptive response length', () => {
+    const legacy = readySession() as SimulatorSession & { settings: Record<string, unknown> };
+    const raw = JSON.stringify({ ...legacy, settings: { provider: legacy.settings.provider, crtMotion: false } });
+    expect(deserializeSession(raw).settings.responseLength).toBe('adaptive');
   });
 });
 
