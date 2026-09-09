@@ -4,13 +4,26 @@ import { resolveActiveCast, resolvePerception } from '../runtime/generation/perc
 import { commitRelationshipEvent, getRelationship, removeRelationshipTurns } from '../runtime/relationships/core';
 import { heuristicRelationshipScorer, type RelationshipScorer } from '../runtime/relationships/evaluator';
 import type { ProviderAdapter } from '../runtime/providers/types';
-import type { TranscriptMessage } from '../runtime/schema/types';
+import type { ResponseLengthMode, TranscriptMessage } from '../runtime/schema/types';
 import type { SimulatorSession } from './session';
 
 function requireReady(session: SimulatorSession) {
   if (!session.character) throw new Error('Load a Character Card V2 subject first.');
   if (!session.persona) throw new Error('Load or create a persona first.');
   return { character: session.character, persona: session.persona };
+}
+
+export function responseTokenBudget(mode: ResponseLengthMode, playerInput: string): number {
+  if (mode === 'concise') return 240;
+  if (mode === 'normal') return 520;
+  if (mode === 'long') return 1000;
+
+  const words = playerInput.trim().split(/\s+/).filter(Boolean).length;
+  if (words <= 8) return 220;
+  if (words <= 25) return 320;
+  if (words <= 60) return 480;
+  if (words <= 120) return 650;
+  return 800;
 }
 
 export async function runTurn(
@@ -41,16 +54,17 @@ export async function runTurn(
   const relationshipBefore = getRelationship(session.relationships, character.id, persona.id);
   const perception = resolvePerception(character, persona, session.scene, playerMessage.text);
   const activeCast = resolveActiveCast(character, playerMessage.text);
+  const responseLength = session.launchPackage?.responseLength ?? 'adaptive';
   const compiledContext = compileContext({
     character, persona, scene: session.scene, transcript: transcriptBeforeReply,
-    relationship: relationshipBefore, reroll: isReroll,
+    relationship: relationshipBefore, responseLength, reroll: isReroll,
     launchPackage: session.launchPackage,
   });
   const providerResult = await provider.generate({
     prompt: compiledContext.prompt,
     model: session.settings.provider.model,
     temperature: session.settings.provider.temperature,
-    maxTokens: session.settings.provider.maxTokens,
+    maxTokens: responseTokenBudget(responseLength, playerMessage.text),
     reroll: isReroll,
   });
   const reply = normalizeRoleplayReply(providerResult.text, playerMessage.text, character.name, persona.name);
