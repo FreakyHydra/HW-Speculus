@@ -30,7 +30,7 @@ export function Transcript(props: {
     {props.messages.map((message) => <article className={`message ${message.sender}`} key={message.id}>
       <div className="message-meta"><span>{message.speaker}</span></div>
       <div className="message-text"><RenderedMessage text={message.text} /></div>
-      {message.sender === 'character' && !message.id.startsWith('opening:') && <div className="message-actions">
+      {(message.sender === 'character' || message.sender === 'controller') && !message.id.startsWith('opening:') && <div className="message-actions">
         <button disabled={props.busy} onClick={() => props.onReroll(message)}>REROLL</button>
         <button disabled={props.busy} onClick={() => props.onDelete(message)}>DELETE TURN</button>
       </div>}

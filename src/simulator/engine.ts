@@ -1,6 +1,8 @@
 import { compileContext } from '../runtime/generation/compile-context';
+import { compileRuntimeContext } from '../runtime/generation/compile-runtime-context';
 import { normalizeRoleplayReply } from '../runtime/generation/format';
 import { resolveActiveCast, resolvePerception } from '../runtime/generation/perception';
+import { resolveRuntimeActiveCast, resolveRuntimeDependencies } from '../runtime/protocols/router';
 import { commitRelationshipEvent, getRelationship, removeRelationshipTurns } from '../runtime/relationships/core';
 import { heuristicRelationshipScorer, type RelationshipScorer } from '../runtime/relationships/evaluator';
 import type { ProviderAdapter } from '../runtime/providers/types';
@@ -8,9 +10,10 @@ import type { TranscriptMessage } from '../runtime/schema/types';
 import type { SimulatorSession } from './session';
 
 function requireReady(session: SimulatorSession) {
-  if (!session.character) throw new Error('Load a Character Card V2 subject first.');
   if (!session.persona) throw new Error('Load or create a persona first.');
-  return { character: session.character, persona: session.persona };
+  if (session.runtime && session.launchPackage) return { runtime: session.runtime, launchPackage: session.launchPackage, character: session.character, persona: session.persona };
+  if (!session.character) throw new Error('Load a Character Card V2 subject first.');
+  return { runtime: null, launchPackage: null, character: session.character, persona: session.persona };
 }
 
 export async function runTurn(
@@ -21,9 +24,11 @@ export async function runTurn(
 ): Promise<SimulatorSession> {
   const cleanInput = input.trim();
   if (!cleanInput) throw new Error('Enter a player turn first.');
-  const { character, persona } = requireReady(session);
+  const { runtime, launchPackage, character, persona } = requireReady(session);
+  const isCharacterRuntime = !runtime || runtime.protocol === 'CharacterRuntime';
+  if (isCharacterRuntime && !character) throw new Error('CharacterRuntime requires a loaded Character Card V2 subject.');
   const rerollIndex = options.rerollCharacterId
-    ? session.transcript.findIndex((message) => message.id === options.rerollCharacterId && message.sender === 'character')
+    ? session.transcript.findIndex((message) => message.id === options.rerollCharacterId && (message.sender === 'character' || message.sender === 'controller'))
     : -1;
   const isReroll = rerollIndex >= 0;
   const turnNumber = isReroll ? Number(session.transcript[rerollIndex].turnId.split(':').at(-1)) || session.nextTurnNumber : session.nextTurnNumber;
@@ -38,14 +43,37 @@ export async function runTurn(
   const transcriptBeforeReply = isReroll
     ? session.transcript.slice(0, rerollIndex)
     : [...session.transcript, playerMessage];
-  const relationshipBefore = getRelationship(session.relationships, character.id, persona.id);
-  const perception = resolvePerception(character, persona, session.scene, playerMessage.text);
-  const activeCast = resolveActiveCast(character, playerMessage.text);
-  const compiledContext = compileContext({
-    character, persona, scene: session.scene, transcript: transcriptBeforeReply,
-    relationship: relationshipBefore, reroll: isReroll,
-    launchPackage: session.launchPackage,
-  });
+  const activeCast = isCharacterRuntime
+    ? resolveActiveCast(character!, playerMessage.text)
+    : resolveRuntimeActiveCast(runtime!, launchPackage!, playerMessage.text, transcriptBeforeReply);
+  const dependencies = runtime && launchPackage
+    ? resolveRuntimeDependencies(launchPackage, activeCast, playerMessage.text)
+    : [];
+  const relationshipTargets = activeCast.active.map(({ id, name }) => ({ id, name }));
+  const relationshipBeforeById = new Map(relationshipTargets.map((target) => [target.id, getRelationship(session.relationships, target.id, persona.id)]));
+  const relationshipBefore = isCharacterRuntime
+    ? relationshipBeforeById.get(character!.id)!
+    : Object.fromEntries(relationshipBeforeById);
+  const perception = isCharacterRuntime
+    ? resolvePerception(character!, persona, session.scene, playerMessage.text)
+    : {
+      input: playerMessage.text,
+      sceneFacts: launchPackage!.runtimeContext?.sceneFacts ?? [session.scene.trim() || 'No scene description was supplied.'],
+      visibleSubjects: activeCast.active.map((member) => member.name),
+      mentionedNames: activeCast.mentionedOnly,
+      filtered: activeCast.mentionedOnly.map((value) => ({ value, reason: 'Mention alone does not activate a character.' })),
+    };
+  const compiledContext = isCharacterRuntime
+    ? compileContext({
+      character: character!, persona, scene: session.scene, transcript: transcriptBeforeReply,
+      relationship: relationshipBeforeById.get(character!.id)!, reroll: isReroll,
+      launchPackage: session.launchPackage,
+    })
+    : compileRuntimeContext({
+      runtime: runtime!, launchPackage: launchPackage!, persona, scene: session.scene,
+      transcript: transcriptBeforeReply, activeCast, dependencies,
+      relationships: relationshipBeforeById, reroll: isReroll,
+    });
   const providerResult = await provider.generate({
     prompt: compiledContext.prompt,
     model: session.settings.provider.model,
@@ -53,26 +81,36 @@ export async function runTurn(
     maxTokens: session.settings.provider.maxTokens,
     reroll: isReroll,
   });
-  const reply = normalizeRoleplayReply(providerResult.text, playerMessage.text, character.name, persona.name);
+  const responseIdentity = isCharacterRuntime ? character!.name : runtime!.controller.name;
+  const reply = normalizeRoleplayReply(providerResult.text, playerMessage.text, responseIdentity, persona.name);
   const characterMessage: TranscriptMessage = {
-    id: characterMessageId, turnId, sender: 'character', speaker: character.name, text: reply, timestamp: Date.now(),
+    id: characterMessageId, turnId, sender: isCharacterRuntime ? 'character' : 'controller', speaker: responseIdentity, text: reply, timestamp: Date.now(),
   };
-  const evaluation = (options.scorer ?? heuristicRelationshipScorer).evaluate({
-    playerMessage: playerMessage.text,
-    characterReply: reply,
-    previousScore: relationshipBefore.score,
-  });
-  const relationships = commitRelationshipEvent(session.relationships, {
-    characterId: character.id,
-    personaId: persona.id,
-    turnId: characterMessage.id,
-    delta: evaluation.delta,
-    reason: evaluation.reason,
-    dimensionDeltas: evaluation.dimensionDeltas,
-    createdAt: characterMessage.timestamp,
-  });
-  const relationshipAfter = getRelationship(relationships, character.id, persona.id);
-  const relationshipEvent = relationshipAfter.events.find((event) => event.turnId === characterMessage.id) ?? null;
+  let relationships = session.relationships;
+  for (const target of relationshipTargets) {
+    const before = relationshipBeforeById.get(target.id)!;
+    const evaluation = (options.scorer ?? heuristicRelationshipScorer).evaluate({
+      playerMessage: playerMessage.text,
+      characterReply: reply,
+      previousScore: before.score,
+    });
+    relationships = commitRelationshipEvent(relationships, {
+      characterId: target.id,
+      personaId: persona.id,
+      turnId: characterMessage.id,
+      delta: evaluation.delta,
+      reason: evaluation.reason,
+      dimensionDeltas: evaluation.dimensionDeltas,
+      createdAt: characterMessage.timestamp,
+    });
+  }
+  const relationshipAfterById = new Map(relationshipTargets.map((target) => [target.id, getRelationship(relationships, target.id, persona.id)]));
+  const relationshipAfter = isCharacterRuntime
+    ? relationshipAfterById.get(character!.id)!
+    : Object.fromEntries(relationshipAfterById);
+  const relationshipEvent = isCharacterRuntime
+    ? relationshipAfterById.get(character!.id)?.events.find((event) => event.turnId === characterMessage.id) ?? null
+    : Object.fromEntries([...relationshipAfterById].map(([id, record]) => [id, record.events.find((event) => event.turnId === characterMessage.id) ?? null]));
   const transcript = isReroll
     ? [...session.transcript.slice(0, rerollIndex), characterMessage, ...session.transcript.slice(rerollIndex + 1)]
     : [...transcriptBeforeReply, characterMessage];
@@ -83,6 +121,13 @@ export async function runTurn(
     inputEvent: playerMessage,
     perception,
     activeCast,
+    runtime: runtime && launchPackage ? {
+      selectedProtocol: runtime.protocol,
+      primaryAsset: { id: launchPackage.primaryAsset.id, name: launchPackage.primaryAsset.name, type: launchPackage.primaryAsset.type },
+      sceneController: runtime.controller,
+      includedDependencies: dependencies,
+      relationshipTargets,
+    } : undefined,
     relationshipBefore,
     relationshipAfter,
     relationshipEvent,
@@ -102,12 +147,18 @@ export async function runTurn(
 
 export function deleteCharacterTurn(session: SimulatorSession, messageId: string): SimulatorSession {
   const { character, persona } = requireReady(session);
-  const message = session.transcript.find((candidate) => candidate.id === messageId && candidate.sender === 'character');
+  const message = session.transcript.find((candidate) => candidate.id === messageId && (candidate.sender === 'character' || candidate.sender === 'controller'));
   if (!message) return session;
+  const diagnostic = session.diagnostics.find((entry) => entry.turnId === message.id);
+  const targetIds = diagnostic?.runtime?.relationshipTargets.map((target) => target.id) ?? (character ? [character.id] : []);
+  const relationships = targetIds.reduce(
+    (state, characterId) => removeRelationshipTurns(state, characterId, persona.id, [message.id]),
+    session.relationships,
+  );
   return {
     ...session,
     transcript: session.transcript.filter((candidate) => candidate.turnId !== message.turnId),
-    relationships: removeRelationshipTurns(session.relationships, character.id, persona.id, [message.id]),
+    relationships,
     diagnostics: session.diagnostics.filter((entry) => entry.turnId !== message.id),
     updatedAt: Date.now(),
   };

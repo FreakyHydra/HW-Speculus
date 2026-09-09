@@ -61,6 +61,27 @@ The following behavior is reduced to the Phase 1 test-bench needs:
 
 For each submitted player turn, the controller creates stable player and character turn IDs. It runs perception and subject resolution, reads the relationship record, compiles context, calls exactly one adapter, cleans the reply, evaluates one relationship event keyed to the character turn ID, persists the resulting session, and records a diagnostics snapshot.
 
+## SPC runtime routing
+
+The Orbis launch package is routed once by `primaryAsset.type`. `CharacterRuntime` keeps the original Sandbox-derived character compiler and speaking-subject behavior. Non-character assets use a scene-controller compiler and never enter the Character Card compatibility slot.
+
+The initial protocol mapping is:
+
+- `character` -> `CharacterRuntime`
+- `place` -> `PlaceRuntime`
+- `world` -> `WorldRuntime`
+- `item` and `object` -> `ItemRuntime`
+- `faction` -> `FactionRuntime`
+- `society` and `clan` -> `SocietyRuntime`
+- `family` -> `FamilyRuntime`
+- `event` and `memory` -> `EventRuntime`
+- `species` -> `SpeciesRuntime`
+- unsupported `other` assets -> explicit `GenericRuntime`
+
+Non-character runtimes resolve active cast only from packaged character records. Explicit active IDs and presence flags are authoritative. Prior speaking, direct address, direct interaction, or an explicit speaking/reacting cue can also activate a packaged character. A bare mention never activates one.
+
+The runtime compiler includes only protocol-specific primary fields and dependencies selected by explicit IDs, active cast, current location, or current-scene references. It keeps objective scene facts, objective canon, and character beliefs in separate prompt sections. Character relationship state is read and written only for resolved character IDs. Diagnostics record the selected protocol, primary asset, scene controller, active cast, selected dependencies, and relationship targets.
+
 A reroll reuses the existing character turn ID and replaces both the transcript entry and its relationship event. Deleting that character turn removes the event and recomputes the relationship record from the remaining events. This makes the transcript the durable source of turn identity and the event list the reproducible source of relationship score.
 
 ## Phase 1 provider contract

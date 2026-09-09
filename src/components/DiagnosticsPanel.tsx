@@ -3,7 +3,7 @@ import { stripModelControlTokens } from '../runtime/generation/format';
 import type { DiagnosticsSnapshot } from '../runtime/schema/types';
 import type { SimulatorSession } from '../simulator/session';
 
-const tabs = ['CONTEXT', 'PERCEPTION', 'CAST', 'RELATIONSHIP', 'PROVIDER', 'TURNS', 'RAW'] as const;
+const tabs = ['RUNTIME', 'CONTEXT', 'PERCEPTION', 'CAST', 'RELATIONSHIP', 'PROVIDER', 'TURNS', 'RAW'] as const;
 type Tab = (typeof tabs)[number];
 
 type TurnGroup = {
@@ -22,6 +22,7 @@ type DiagnosticsPanelProps = {
 function contentFor(tab: Exclude<Tab, 'TURNS'>, snapshot: DiagnosticsSnapshot | undefined, session: SimulatorSession): unknown {
   if (tab === 'RAW') return session;
   if (!snapshot) return { status: 'No generated turn has produced diagnostics yet.' };
+  if (tab === 'RUNTIME') return snapshot.runtime ?? { selectedProtocol: 'CharacterRuntime', status: 'Legacy character diagnostics.' };
   if (tab === 'CONTEXT') return { prompt: snapshot.compiledContext.prompt, manifest: snapshot.compiledContext.manifest };
   if (tab === 'PERCEPTION') return snapshot.perception;
   if (tab === 'CAST') return snapshot.activeCast;

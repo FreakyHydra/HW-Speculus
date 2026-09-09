@@ -197,8 +197,9 @@ export function App() {
     finally { setBusy(false); }
   }, [session]);
 
-  const relationship = useMemo(() => session?.character && session.persona
-    ? getRelationship(session.relationships, session.character.id, session.persona.id)
+  const relationshipTarget = session?.runtime?.speakingPrimary ? session.runtime.primaryAssetId : session?.character?.id;
+  const relationship = useMemo(() => relationshipTarget && session?.persona
+    ? getRelationship(session.relationships, relationshipTarget, session.persona.id)
     : null, [session]);
 
   if (booting || !session) {
@@ -271,7 +272,8 @@ export function App() {
           <dt>PRIMARY ASSET</dt><dd>{source.name}</dd>
           <dt>ASSET TYPE</dt><dd>{source.type.toLocaleUpperCase('en-US')}</dd>
           <dt>SOURCE REVISION</dt><dd>{source.revision}</dd>
-          <dt>ACTIVE SUBJECT</dt><dd>{session.character?.name ?? 'SIMULATION NARRATOR'}</dd>
+          <dt>RUNTIME</dt><dd>{session.runtime?.protocol ?? 'CharacterRuntime'}</dd>
+          <dt>ACTIVE SUBJECT</dt><dd>{session.runtime?.controller.name ?? session.character?.name ?? 'SIMULATION NARRATOR'}</dd>
           <dt>PERSONA</dt><dd>{session.persona?.name ?? 'PACKAGE FAULT'}</dd>
           <dt>RELATED RECORDS</dt><dd>{session.launchPackage!.relatedAssets.length}</dd>
           <dt>RELATIONSHIP</dt><dd>{relationship ? `${relationship.label} / ${relationship.score}` : 'NO LINK'}</dd>
