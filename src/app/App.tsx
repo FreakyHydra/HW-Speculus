@@ -17,6 +17,7 @@ type SplitterSide = 'left' | 'right';
 type PanelLayout = { left: number; right: number };
 
 const PANEL_LAYOUT_KEY = 'speculus-panel-layout';
+const DIAGNOSTICS_VISIBILITY_KEY = 'speculus-diagnostics-visible';
 const DEFAULT_PANEL_LAYOUT: PanelLayout = { left: 370, right: 500 };
 const MIN_LEFT_PANEL = 220;
 const MAX_LEFT_PANEL = 620;
@@ -41,6 +42,10 @@ function loadPanelLayout(): PanelLayout {
   }
 }
 
+function loadDiagnosticsVisible() {
+  return window.localStorage.getItem(DIAGNOSTICS_VISIBILITY_KEY) !== 'false';
+}
+
 async function claimLaunch(code: string): Promise<ClientLaunchPackage> {
   const response = await fetch(`/api/launch/${encodeURIComponent(code)}`);
   const body = await response.json() as { package?: unknown; error?: string };
@@ -60,6 +65,7 @@ export function App() {
     return saved === 'light' || saved === 'auto' || saved === 'dark' ? saved : 'dark';
   });
   const [panelLayout, setPanelLayout] = useState<PanelLayout>(loadPanelLayout);
+  const [diagnosticsVisible, setDiagnosticsVisible] = useState(loadDiagnosticsVisible);
   const [dragging, setDragging] = useState<SplitterSide | null>(null);
   const workstationRef = useRef<HTMLDivElement>(null);
   const importSessionRef = useRef<HTMLInputElement>(null);
@@ -72,6 +78,10 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem(PANEL_LAYOUT_KEY, JSON.stringify(panelLayout));
   }, [panelLayout]);
+
+  useEffect(() => {
+    window.localStorage.setItem(DIAGNOSTICS_VISIBILITY_KEY, String(diagnosticsVisible));
+  }, [diagnosticsVisible]);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,13 +126,15 @@ export function App() {
     const available = workstation.getBoundingClientRect().width;
     setPanelLayout((current) => {
       if (side === 'left') {
-        const max = Math.max(MIN_LEFT_PANEL, Math.min(MAX_LEFT_PANEL, available - current.right - MIN_TERMINAL_PANEL - SPLITTER_SPACE));
+        const reservedRight = diagnosticsVisible ? current.right : 0;
+        const reservedSplitters = diagnosticsVisible ? SPLITTER_SPACE : SPLITTER_SPACE / 2;
+        const max = Math.max(MIN_LEFT_PANEL, Math.min(MAX_LEFT_PANEL, available - reservedRight - MIN_TERMINAL_PANEL - reservedSplitters));
         return { ...current, left: clamp(requestedWidth, MIN_LEFT_PANEL, max) };
       }
       const max = Math.max(MIN_RIGHT_PANEL, Math.min(MAX_RIGHT_PANEL, available - current.left - MIN_TERMINAL_PANEL - SPLITTER_SPACE));
       return { ...current, right: clamp(requestedWidth, MIN_RIGHT_PANEL, max) };
     });
-  }, []);
+  }, [diagnosticsVisible]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -250,7 +262,7 @@ export function App() {
       <div className="status-bank"><span><i className="lamp lamp-green" />CORE</span><span><i className="lamp lamp-green" />ORBIS</span><span><i className="lamp lamp-green" />MODEL</span></div>
     </header>
 
-    <div ref={workstationRef} className={`workstation resizable-workstation ${dragging ? 'is-resizing' : ''}`} style={workstationStyle}>
+    <div ref={workstationRef} className={`workstation resizable-workstation ${dragging ? 'is-resizing' : ''} ${diagnosticsVisible ? '' : 'diagnostics-hidden'}`} style={workstationStyle}>
       <aside className="panel subject-panel">
         <header className="panel-header"><span>PACKAGE</span><span>VER. 1</span></header>
         <dl>
@@ -300,7 +312,22 @@ export function App() {
       ><span aria-hidden="true" /></div>
 
       <section className="panel terminal-panel">
-        <header className="panel-header"><span>TERMINAL</span><span>CHANNEL A</span></header>
+        <header className="panel-header">
+          <span>TERMINAL</span>
+          <span className="panel-header-actions">
+            <span>CHANNEL A</span>
+            <button
+              type="button"
+              className="panel-visibility-button"
+              aria-expanded={diagnosticsVisible}
+              aria-controls="diagnostics-panel"
+              onClick={() => {
+                setDragging(null);
+                setDiagnosticsVisible((visible) => !visible);
+              }}
+            >{diagnosticsVisible ? 'HIDE SIDE PANEL' : 'SHOW SIDE PANEL'}</button>
+          </span>
+        </header>
         <Transcript messages={session.transcript} busy={busy} onReroll={(message) => {
           const player = session.transcript.slice(0, session.transcript.indexOf(message)).reverse().find((candidate) => candidate.sender === 'player');
           if (player) void submit(player.text, message);
@@ -317,28 +344,32 @@ export function App() {
         </footer>
       </section>
 
-      <div
-        className="panel-splitter panel-splitter--right"
-        role="separator"
-        aria-label="Resize terminal and diagnostics panels"
-        aria-orientation="vertical"
-        aria-valuemin={MIN_RIGHT_PANEL}
-        aria-valuemax={MAX_RIGHT_PANEL}
-        aria-valuenow={Math.round(panelLayout.right)}
-        tabIndex={0}
-        title="Drag to resize. Double-click or press Home to reset."
-        onPointerDown={(event) => startResize('right', event)}
-        onDoubleClick={() => resetPanel('right')}
-        onKeyDown={(event) => resizeWithKeyboard('right', event)}
-      ><span aria-hidden="true" /></div>
+      {diagnosticsVisible && <>
+        <div
+          className="panel-splitter panel-splitter--right"
+          role="separator"
+          aria-label="Resize terminal and diagnostics panels"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_RIGHT_PANEL}
+          aria-valuemax={MAX_RIGHT_PANEL}
+          aria-valuenow={Math.round(panelLayout.right)}
+          tabIndex={0}
+          title="Drag to resize. Double-click or press Home to reset."
+          onPointerDown={(event) => startResize('right', event)}
+          onDoubleClick={() => resetPanel('right')}
+          onKeyDown={(event) => resizeWithKeyboard('right', event)}
+        ><span aria-hidden="true" /></div>
 
-      <DiagnosticsPanel
-        session={session}
-        busy={busy}
-        onExportRaw={exportSession}
-        onImportRaw={() => importSessionRef.current?.click()}
-        onExitSimulator={endSimulation}
-      />
+        <div id="diagnostics-panel">
+          <DiagnosticsPanel
+            session={session}
+            busy={busy}
+            onExportRaw={exportSession}
+            onImportRaw={() => importSessionRef.current?.click()}
+            onExitSimulator={endSimulation}
+          />
+        </div>
+      </>}
     </div>
     <footer className="chassis-footer"><span>HOWLING WHISPERS RESEARCH DIVISION</span><span>ORBIS LINK / UNIT S-001</span></footer>
   </main>;
