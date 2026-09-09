@@ -18,7 +18,11 @@ const characterSchema = z.object({
 });
 
 const personaSchema = z.object({
-  kind: z.literal('persona'), id: z.string().min(1), name: z.string().min(1), description: z.string(),
+  kind: z.literal('persona'),
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string(),
+  pronouns: z.enum(['he/him', 'she/her', 'they/them', 'it/its']).nullable().optional(),
 });
 
 const catalogSchema = z.object({
@@ -43,6 +47,7 @@ export const orbisLaunchPackageSchema = z.object({
   relatedAssets: z.array(assetSchema).max(200).default([]),
   character: characterSchema.nullable().default(null),
   persona: personaSchema,
+  responseLength: z.enum(['concise', 'normal', 'long', 'adaptive']).default('adaptive'),
   scene: z.string().max(100_000),
   contextBlocks: z.array(z.object({ id: z.string().min(1).max(200), title: z.string().max(300), content: z.string().max(100_000) })).max(500).default([]),
   relationshipState: z.record(z.string(), z.unknown()).default({}),

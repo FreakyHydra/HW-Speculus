@@ -13,11 +13,15 @@ export type CharacterCard = {
   tags: string[];
 };
 
+export type PlayerPronouns = 'he/him' | 'she/her' | 'they/them' | 'it/its';
+export type ResponseLengthMode = 'concise' | 'normal' | 'long' | 'adaptive';
+
 export type Persona = {
   kind: 'persona';
   id: string;
   name: string;
   description: string;
+  pronouns?: PlayerPronouns | null;
 };
 
 export type TranscriptMessage = {
@@ -75,6 +79,7 @@ export type OrbisLaunchPackage = {
   relatedAssets: SimulationAsset[];
   character: CharacterCard | null;
   persona: Persona;
+  responseLength: ResponseLengthMode;
   scene: string;
   contextBlocks: ContextBlock[];
   relationshipState: import('../relationships/schema.js').RelationshipState;

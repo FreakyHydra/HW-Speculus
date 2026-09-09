@@ -14,6 +14,7 @@ function launch(assetId = 'asset-1'): ClientLaunchPackage {
     relatedAssets: [],
     character,
     persona,
+    responseLength: 'adaptive',
     scene: 'Fresh scene',
     contextBlocks: [],
     relationshipState: {},

@@ -15,6 +15,7 @@ const storedSchema = z.object({
   diagnostics: z.array(z.unknown()),
   settings: z.object({
     provider: z.object({ kind: z.enum(['mock', 'orbis']), model: z.string(), temperature: z.number(), maxTokens: z.number() }),
+    responseLength: z.enum(['concise', 'normal', 'long', 'adaptive']).default('adaptive'),
     crtMotion: z.boolean(),
   }),
   nextTurnNumber: z.number().int().positive(),

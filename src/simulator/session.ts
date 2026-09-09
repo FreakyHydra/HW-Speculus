@@ -1,5 +1,5 @@
 import { resolveSimulationSubject } from '../runtime/schema/launch-package';
-import type { DiagnosticsSnapshot, CharacterCard, ClientLaunchPackage, Persona, ProviderSettings, TranscriptMessage } from '../runtime/schema/types';
+import type { DiagnosticsSnapshot, CharacterCard, ClientLaunchPackage, Persona, ProviderSettings, ResponseLengthMode, TranscriptMessage } from '../runtime/schema/types';
 import type { RelationshipState } from '../runtime/relationships/schema';
 
 export const SESSION_VERSION = 1 as const;
@@ -16,6 +16,7 @@ export type SimulatorSession = {
   diagnostics: DiagnosticsSnapshot[];
   settings: {
     provider: ProviderSettings;
+    responseLength: ResponseLengthMode;
     crtMotion: boolean;
   };
   nextTurnNumber: number;
@@ -37,6 +38,7 @@ export function createSession(now = Date.now(), launchPackage: ClientLaunchPacka
     diagnostics: [],
     settings: {
       provider: { kind: launchPackage ? 'orbis' : 'mock', model: launchPackage?.model ?? 'speculus-deterministic', temperature: 0.8, maxTokens: 850 },
+      responseLength: launchPackage?.responseLength ?? 'adaptive',
       crtMotion: true,
     },
     nextTurnNumber: 1,

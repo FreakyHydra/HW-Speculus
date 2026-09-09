@@ -17,6 +17,32 @@ describe('runtime foundations', () => {
     expect(compiled.manifest.includedSections).toContain('persona');
   });
 
+  it('does not invent player pronouns when they are unset', () => {
+    const relationship = getRelationship({}, character.id, persona.id);
+    const compiled = compileContext({ character, persona, scene: 'Inside the test vault.', transcript: [], relationship });
+    expect(compiled.prompt).toContain('Player pronouns are unset.');
+    expect(compiled.prompt).toContain('do not default to singular they/them');
+    expect(compiled.prompt).toContain('Use Skyler or second-person "you" instead.');
+  });
+
+  it('preserves selected player pronouns in persona imports and context', () => {
+    const hePersona = importPersona({ id: 'persona:he', name: 'Skyler', description: 'A traveler.', pronouns: 'he/him' });
+    const relationship = getRelationship({}, character.id, hePersona.id);
+    const compiled = compileContext({ character, persona: hePersona, scene: 'Inside the test vault.', transcript: [], relationship });
+    expect(hePersona.pronouns).toBe('he/him');
+    expect(compiled.prompt).toContain('Selected player pronouns: he/him.');
+  });
+
+  it('adds explicit pacing guidance for response-length modes', () => {
+    const relationship = getRelationship({}, character.id, persona.id);
+    const concise = compileContext({ character, persona, scene: 'Inside the test vault.', transcript: [], relationship, responseLength: 'concise' });
+    const adaptive = compileContext({ character, persona, scene: 'Inside the test vault.', transcript: [], relationship, responseLength: 'adaptive' });
+    expect(concise.prompt).toContain('Response length: CONCISE.');
+    expect(concise.prompt).toContain('Do not continue through multiple scene beats');
+    expect(adaptive.prompt).toContain('Response length: ADAPTIVE.');
+    expect(adaptive.prompt).toContain('Scale detail and length to the player turn');
+  });
+
   it('anchors Orbis context to the immutable SPC registry identity', () => {
     const relationship = getRelationship({}, character.id, persona.id);
     const launchPackage: ClientLaunchPackage = {
@@ -33,6 +59,7 @@ describe('runtime foundations', () => {
       relatedAssets: [],
       character,
       persona,
+      responseLength: 'adaptive',
       scene: 'Inside the test vault.',
       contextBlocks: [],
       relationshipState: {},
