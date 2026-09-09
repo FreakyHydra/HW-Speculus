@@ -54,7 +54,7 @@ export async function runTurn(
   const relationshipBefore = getRelationship(session.relationships, character.id, persona.id);
   const perception = resolvePerception(character, persona, session.scene, playerMessage.text);
   const activeCast = resolveActiveCast(character, playerMessage.text);
-  const responseLength = session.launchPackage?.responseLength ?? 'adaptive';
+  const responseLength = session.settings.responseLength;
   const compiledContext = compileContext({
     character, persona, scene: session.scene, transcript: transcriptBeforeReply,
     relationship: relationshipBefore, responseLength, reroll: isReroll,
