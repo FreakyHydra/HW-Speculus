@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { SESSION_VERSION, type SimulatorSession } from '../simulator/session';
+import { selectRuntime } from '../runtime/protocols/router';
 
 export const SESSION_STORAGE_KEY = 'speculus.session.v1';
 
@@ -7,6 +8,7 @@ const storedSchema = z.object({
   version: z.literal(SESSION_VERSION),
   id: z.string(),
   launchPackage: z.unknown().nullable(),
+  runtime: z.unknown().nullable().optional(),
   character: z.unknown().nullable(),
   persona: z.unknown().nullable(),
   scene: z.string(),
@@ -32,7 +34,9 @@ export function deserializeSession(raw: string): SimulatorSession {
   try { parsed = JSON.parse(raw); } catch { throw new Error('Stored session JSON is malformed.'); }
   const result = storedSchema.safeParse(parsed);
   if (!result.success) throw new Error('Stored session is not a supported Speculus session.');
-  return result.data as SimulatorSession;
+  const session = result.data as unknown as SimulatorSession;
+  if (!session.runtime && session.launchPackage) session.runtime = selectRuntime(session.launchPackage);
+  return session;
 }
 
 export function loadSession(storage: Pick<Storage, 'getItem'> = sessionStorage): SimulatorSession | null {

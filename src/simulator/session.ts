@@ -1,5 +1,6 @@
 import { resolveSimulationSubject } from '../runtime/schema/launch-package';
-import type { DiagnosticsSnapshot, CharacterCard, ClientLaunchPackage, Persona, ProviderSettings, TranscriptMessage } from '../runtime/schema/types';
+import { selectRuntime } from '../runtime/protocols/router';
+import type { DiagnosticsSnapshot, CharacterCard, ClientLaunchPackage, Persona, ProviderSettings, RuntimeDescriptor, TranscriptMessage } from '../runtime/schema/types';
 import type { RelationshipState } from '../runtime/relationships/schema';
 
 export const SESSION_VERSION = 1 as const;
@@ -8,6 +9,7 @@ export type SimulatorSession = {
   version: typeof SESSION_VERSION;
   id: string;
   launchPackage: ClientLaunchPackage | null;
+  runtime: RuntimeDescriptor | null;
   character: CharacterCard | null;
   persona: Persona | null;
   scene: string;
@@ -25,10 +27,12 @@ export type SimulatorSession = {
 
 export function createSession(now = Date.now(), launchPackage: ClientLaunchPackage | null = null): SimulatorSession {
   const character = launchPackage ? resolveSimulationSubject(launchPackage) : null;
+  const runtime = launchPackage ? selectRuntime(launchPackage) : null;
   return {
     version: SESSION_VERSION,
     id: `simulation:${now.toString(36)}`,
     launchPackage,
+    runtime,
     character,
     persona: launchPackage?.persona ?? null,
     scene: launchPackage?.scene ?? '',

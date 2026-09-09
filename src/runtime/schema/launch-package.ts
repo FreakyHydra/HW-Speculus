@@ -4,7 +4,7 @@ import type { CharacterCard, ClientLaunchPackage, OrbisLaunchPackage, Simulation
 const assetSchema = z.object({
   id: z.string().trim().min(1).max(200),
   revision: z.string().trim().min(1).max(200),
-  type: z.enum(['character', 'world', 'place', 'item', 'faction', 'other']),
+  type: z.enum(['character', 'world', 'place', 'item', 'object', 'faction', 'society', 'clan', 'family', 'event', 'memory', 'species', 'other']),
   name: z.string().trim().min(1).max(200),
   summary: z.string().max(20_000).default(''),
   data: z.unknown(),
@@ -45,6 +45,18 @@ export const orbisLaunchPackageSchema = z.object({
   persona: personaSchema,
   scene: z.string().max(100_000),
   contextBlocks: z.array(z.object({ id: z.string().min(1).max(200), title: z.string().max(300), content: z.string().max(100_000) })).max(500).default([]),
+  runtimeContext: z.object({
+    activeCharacterIds: z.array(z.string().min(1).max(200)).max(100).optional(),
+    dependencyIds: z.array(z.string().min(1).max(200)).max(500).optional(),
+    currentLocationId: z.string().min(1).max(200).optional(),
+    sceneFacts: z.array(z.string().max(20_000)).max(200).optional(),
+    objectiveCanon: z.array(z.string().max(20_000)).max(200).optional(),
+    characterBeliefs: z.record(z.string(), z.array(z.string().max(20_000)).max(200)).optional(),
+    localState: z.unknown().optional(),
+    physicalSceneState: z.unknown().optional(),
+    time: z.unknown().optional(),
+    weather: z.unknown().optional(),
+  }).optional(),
   relationshipState: z.record(z.string(), z.unknown()).default({}),
   model: z.string().trim().min(1).max(200),
   generationGrant: z.string().min(16).max(8192),
@@ -128,21 +140,7 @@ export function parseClientLaunchPackage(value: unknown): ClientLaunchPackage {
   return clientLaunchPackage(parsed);
 }
 
-export function resolveSimulationSubject(value: ClientLaunchPackage): CharacterCard {
-  if (value.character) return value.character;
-  const asset = value.primaryAsset;
-  return {
-    kind: 'character',
-    id: asset.id,
-    spec: 'chara_card_v2',
-    name: asset.name,
-    description: `${asset.summary}\n\nPackaged ${asset.type} data:\n${JSON.stringify(asset.data, null, 2)}`.trim(),
-    personality: '',
-    scenario: value.scene,
-    firstMessage: '',
-    exampleDialogue: '',
-    systemPrompt: `Act as the simulation narrator for the packaged ${asset.type} named ${asset.name}. Keep the selected asset central and do not impersonate the player.`,
-    postHistoryInstructions: '',
-    tags: [asset.type, 'orbis-packaged'],
-  };
+export function resolveSimulationSubject(value: ClientLaunchPackage): CharacterCard | null {
+  if (value.primaryAsset.type !== 'character') return null;
+  return value.character;
 }

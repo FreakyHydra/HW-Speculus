@@ -23,7 +23,7 @@ export type Persona = {
 export type TranscriptMessage = {
   id: string;
   turnId: string;
-  sender: 'player' | 'character' | 'system';
+  sender: 'player' | 'character' | 'controller' | 'system';
   speaker: string;
   text: string;
   timestamp: number;
@@ -38,7 +38,20 @@ export type ProviderSettings = {
   maxTokens: number;
 };
 
-export type SimulationAssetType = 'character' | 'world' | 'place' | 'item' | 'faction' | 'other';
+export type SimulationAssetType =
+  | 'character'
+  | 'world'
+  | 'place'
+  | 'item'
+  | 'object'
+  | 'faction'
+  | 'society'
+  | 'clan'
+  | 'family'
+  | 'event'
+  | 'memory'
+  | 'species'
+  | 'other';
 
 export type SimulationAsset = {
   id: string;
@@ -65,6 +78,22 @@ export type SpeculusCatalogIdentity = {
 
 export type ContextBlock = { id: string; title: string; content: string };
 
+export type RuntimeEpistemicState = {
+  sceneFacts?: string[];
+  objectiveCanon?: string[];
+  characterBeliefs?: Record<string, string[]>;
+};
+
+export type RuntimeLaunchContext = RuntimeEpistemicState & {
+  activeCharacterIds?: string[];
+  dependencyIds?: string[];
+  currentLocationId?: string;
+  localState?: unknown;
+  physicalSceneState?: unknown;
+  time?: unknown;
+  weather?: unknown;
+};
+
 export type OrbisLaunchPackage = {
   version: 1;
   launchId: string;
@@ -77,6 +106,7 @@ export type OrbisLaunchPackage = {
   persona: Persona;
   scene: string;
   contextBlocks: ContextBlock[];
+  runtimeContext?: RuntimeLaunchContext;
   relationshipState: import('../relationships/schema.js').RelationshipState;
   model: string;
   generationGrant: string;
@@ -99,14 +129,58 @@ export type ActiveCastResult = {
   mentionedOnly: string[];
 };
 
+export type RuntimeProtocolId =
+  | 'CharacterRuntime'
+  | 'PlaceRuntime'
+  | 'WorldRuntime'
+  | 'ItemRuntime'
+  | 'FactionRuntime'
+  | 'SocietyRuntime'
+  | 'FamilyRuntime'
+  | 'EventRuntime'
+  | 'SpeciesRuntime'
+  | 'GenericRuntime';
+
+export type RuntimeController = {
+  id: string;
+  name: string;
+  role: 'character' | 'scene-controller';
+};
+
+export type RuntimeDescriptor = {
+  protocol: RuntimeProtocolId;
+  assetType: SimulationAssetType;
+  primaryAssetId: string;
+  primaryAssetName: string;
+  controller: RuntimeController;
+  speakingPrimary: boolean;
+};
+
+export type RuntimeDependency = {
+  id: string;
+  name: string;
+  type: SimulationAssetType | 'context';
+  reason: string;
+};
+
+export type RuntimeDiagnostics = {
+  selectedProtocol: RuntimeProtocolId;
+  primaryAsset: { id: string; name: string; type: SimulationAssetType };
+  sceneController: RuntimeController;
+  includedDependencies: RuntimeDependency[];
+  relationshipTargets: Array<{ id: string; name: string }>;
+};
+
 export type ContextManifest = {
-  compilerVersion: 1;
+  compilerVersion: 1 | 2;
   includedSections: string[];
   includedMessages: number;
   estimatedInputTokens: number;
   characterId: string;
   personaId: string;
   scene: string;
+  runtimeProtocol?: RuntimeProtocolId;
+  dependencyIds?: string[];
 };
 
 export type CompiledContext = { prompt: string; manifest: ContextManifest };
@@ -126,6 +200,7 @@ export type DiagnosticsSnapshot = {
   inputEvent: TranscriptMessage;
   perception: PerceptionResult;
   activeCast: ActiveCastResult;
+  runtime?: RuntimeDiagnostics;
   relationshipBefore: unknown;
   relationshipAfter: unknown;
   relationshipEvent: unknown;
