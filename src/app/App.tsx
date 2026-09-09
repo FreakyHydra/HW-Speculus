@@ -5,7 +5,7 @@ import { Transcript } from '../components/Transcript';
 import { BrowserProvider } from '../runtime/providers/browser';
 import { getRelationship } from '../runtime/relationships/core';
 import { parseClientLaunchPackage, resolveCatalogIdentity } from '../runtime/schema/launch-package';
-import type { ClientLaunchPackage, TranscriptMessage } from '../runtime/schema/types';
+import type { ClientLaunchPackage, ResponseLengthMode, TranscriptMessage } from '../runtime/schema/types';
 import { deleteCharacterTurn, runTurn } from '../simulator/engine';
 import { createSession, withOpeningMessage, type SimulatorSession } from '../simulator/session';
 import { exportRawSession, rawSessionFilename, resumeRawSession } from '../storage/session-transfer';
@@ -200,7 +200,13 @@ export function App() {
 
   const source = session.launchPackage!.primaryAsset;
   const catalog = resolveCatalogIdentity(session.launchPackage!);
+  const responseLength = session.settings.responseLength ?? session.launchPackage?.responseLength ?? 'adaptive';
   const updateScene = (scene: string) => setSession((current) => current ? { ...current, scene, updatedAt: Date.now() } : current);
+  const updateResponseLength = (value: ResponseLengthMode) => setSession((current) => current ? {
+    ...current,
+    settings: { ...current.settings, responseLength: value },
+    updatedAt: Date.now(),
+  } : current);
   const exportSession = () => {
     try {
       const blob = new Blob([exportRawSession(session)], { type: 'application/json' });
@@ -273,6 +279,14 @@ export function App() {
           <div className="data-readout"><span>ROUTE</span><strong>ORBIS SHARED API</strong></div>
           <div className="data-readout"><span>MODEL</span><strong>{session.settings.provider.model}</strong></div>
           <div className="data-readout"><span>CREDENTIAL</span><strong>SERVER SEALED</strong></div>
+          <label className="theme-select">RESPONSE LENGTH
+            <select value={responseLength} onChange={(event) => updateResponseLength(event.target.value as ResponseLengthMode)}>
+              <option value="concise">CONCISE</option>
+              <option value="normal">NORMAL</option>
+              <option value="long">LONG</option>
+              <option value="adaptive">ADAPTIVE</option>
+            </select>
+          </label>
           <label className="toggle"><input type="checkbox" checked={session.settings.crtMotion} onChange={(event) => setSession({ ...session, settings: { ...session.settings, crtMotion: event.target.checked } })} /> CRT MOTION</label>
           <label className="theme-select">DISPLAY THEME
             <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>
