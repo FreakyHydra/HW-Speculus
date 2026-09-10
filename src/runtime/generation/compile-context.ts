@@ -1,6 +1,6 @@
 import { relationshipLabel, type getRelationship } from '../relationships/core';
 import type { CharacterCard, ClientLaunchPackage, CompiledContext, Persona, TranscriptMessage } from '../schema/types';
-import { stripModelControlTokens } from './format';
+import { redactPrivatePlayerKnowledge, stripModelControlTokens } from './format';
 
 type Relationship = ReturnType<typeof getRelationship>;
 
@@ -23,6 +23,10 @@ export function compileContext(input: {
       'You are the loaded roleplay subject in a controlled character simulation.',
       `Write only ${character.name}'s next response. Never write the player's actions, thoughts, decisions, or dialogue.`,
       'Established facts and the loaded subject card outrank improvisation.',
+      'The transcript is evidence, not automatic character knowledge.',
+      'Player inner voice, private narration, intentions, memories, lineage, expectations, and other non-observable facts are not available to the character unless canon or prior observable events independently establish them.',
+      'Do not turn suspicion, belief, inference, or misunderstanding into world truth.',
+      'A name mentioned outside observable speech or action does not become known to the character merely because it appeared in player narration.',
     ].join('\n')],
     ['character', [
       `Name: ${character.name}`,
@@ -43,30 +47,21 @@ export function compileContext(input: {
     ].join('\n')],
   ];
   if (input.launchPackage) {
-    const additions: Array<[string, string]> = [];
-    const catalog = input.launchPackage.catalog;
-    if (catalog) {
-      additions.push(['registry', [
-        `Canonical Speculus identity: ${catalog.code}`,
-        `Internal global registry sequence: ${catalog.registryNumber}`,
-        `Internal ${catalog.classification.toLocaleLowerCase('en-US')} sequence: ${catalog.classRegistryNumber}`,
-        `Registered creation time: ${catalog.createdAt}`,
-        'Treat this registry identity as immutable. It identifies the same authored entity even if its display name, aliases, relationships, or location change later.',
-        'Registry identifiers are runtime metadata, not in-world knowledge. Do not mention them in roleplay unless the player explicitly makes them part of the scene.',
-      ].join('\n')]);
-    }
-    additions.push(['orbis-asset', [
+    // Deliberately exclude registry identifiers, revisions, grants, and raw asset JSON from model context.
+    // Those values remain available to Speculus diagnostics/runtime but are not needed for roleplay generation.
+    sections.splice(2, 0, ['orbis-asset', [
       `Primary asset type: ${input.launchPackage.primaryAsset.type}`,
       `Primary asset: ${input.launchPackage.primaryAsset.name}`,
-      `Source revision: ${input.launchPackage.primaryAsset.revision}`,
       input.launchPackage.primaryAsset.summary,
-      `Packaged data:\n${JSON.stringify(input.launchPackage.primaryAsset.data, null, 2)}`,
       ...input.launchPackage.contextBlocks.map((block) => `${block.title}:\n${block.content}`),
     ].filter(Boolean).join('\n\n')]);
-    sections.splice(2, 0, ...additions);
   }
   if (input.reroll) sections.push(['reroll', 'Generate a genuinely different reaction from the same preceding player turn while preserving canon and continuity.']);
-  const history = input.transcript.slice(-20).map((message) => `${message.speaker}: ${stripModelControlTokens(message.text).trim()}`).join('\n');
+  const history = input.transcript.slice(-20).map((message) => {
+    const raw = stripModelControlTokens(message.text).trim();
+    const text = message.sender === 'player' ? redactPrivatePlayerKnowledge(raw) : raw;
+    return `${message.speaker}: ${text}`;
+  }).join('\n');
   sections.push(['history', history || '(no prior messages)']);
   const prompt = `${sections.map(([name, value]) => `<${name}>\n${value}\n</${name}>`).join('\n\n')}\n\n<assistant>\n${character.name}:`;
   return {
