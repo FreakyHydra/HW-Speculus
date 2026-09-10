@@ -1,4 +1,10 @@
 const MARKED_SPAN = /(\*[^*]+\*|"[^"]+"|\[[^\]]+\])/;
+const MARKED_PLAYER_SPAN = /(\*[^*]+\*|"[^"]+"|\[[^\]]+\])/g;
+
+const INTERNAL_CONTEXT_LEAK_PATTERNS: RegExp[] = [
+  /<\s*\/?\s*(?:character|persona|scene|relationship|clock|format|history|reroll|registry|orbis-asset)\s*>/i,
+  /^\s*(?:Card system prompt|Post-history instructions|Canonical Speculus identity|Internal global registry sequence|Internal [^:\r\n]+ sequence|Source revision|Packaged data)\s*:/im,
+];
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -8,6 +14,41 @@ export function stripModelControlTokens(value: string): string {
   return value
     .replace(/<\s*\/?\s*(?:assistant|user|system)\s*>/gi, '')
     .replace(/<\s*\|\s*(?:assistant|user|system)\s*\|\s*>/gi, '');
+}
+
+function redactPrivateAction(action: string): string {
+  const inner = action.slice(1, -1).trim();
+  const privateCue = /\b(?:thinking|wondering|remembering|knowing|hoping|expecting|realizing|imagining|believing|suspecting|planning|intending)\b/i.exec(inner);
+  const observable = privateCue ? inner.slice(0, privateCue.index).replace(/[\s,;:-]+$/, '').trim() : inner;
+  return observable ? `*${observable}*` : '';
+}
+
+/**
+ * Produce the player text that may be shown to the active roleplay subject.
+ * Raw transcript text remains untouched elsewhere for evidence/export.
+ *
+ * When the player uses Speculus roleplay markup, only spoken dialogue and
+ * outward action spans are forwarded. Square-bracketed inner voice and
+ * unmarked narration around marked spans are treated as private. Plain,
+ * completely unmarked input is preserved for backwards-compatible chat use.
+ */
+export function redactPrivatePlayerKnowledge(value: string): string {
+  const cleaned = stripModelControlTokens(value).trim();
+  const spans = [...cleaned.matchAll(MARKED_PLAYER_SPAN)].map((match) => match[0]);
+  if (!spans.length) return cleaned;
+
+  const visible = spans
+    .filter((span) => !span.startsWith('['))
+    .map((span) => span.startsWith('*') ? redactPrivateAction(span) : span)
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  return visible || '(private player narration omitted)';
+}
+
+export function containsInternalContextLeak(value: string): boolean {
+  return INTERNAL_CONTEXT_LEAK_PATTERNS.some((pattern) => pattern.test(value));
 }
 
 export function stripEchoedPlayerTurn(reply: string, playerTurn: string): string {
@@ -48,6 +89,10 @@ function cleanModelArtifacts(reply: string, characterName = '', playerName = '')
 }
 
 export function normalizeRoleplayReply(raw: string, latestPlayerTurn = '', characterName = '', playerName = ''): string {
+  if (containsInternalContextLeak(raw)) {
+    throw new Error('The provider reply exposed internal Speculus context and was blocked.');
+  }
+
   let value = stripEchoedPlayerTurn(stripModelControlTokens(raw.trim()), latestPlayerTurn)
     .replace(/^\s*(?:assistant|character)\s*:\s*/i, '')
     .replace(/[“”]/g, '"')
