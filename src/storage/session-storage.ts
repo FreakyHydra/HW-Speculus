@@ -10,6 +10,10 @@ const storedSchema = z.object({
   character: z.unknown().nullable(),
   persona: z.unknown().nullable(),
   scene: z.string(),
+  influence: z.object({
+    tags: z.array(z.string()),
+    freeform: z.string(),
+  }).optional(),
   transcript: z.array(z.unknown()),
   relationships: z.record(z.string(), z.unknown()),
   diagnostics: z.array(z.unknown()),
