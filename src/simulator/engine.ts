@@ -13,6 +13,10 @@ function requireReady(session: SimulatorSession) {
   return { character: session.character, persona: session.persona };
 }
 
+function hasCharacterPrimary(session: SimulatorSession): boolean {
+  return session.launchPackage?.primaryAsset.type ? session.launchPackage.primaryAsset.type === 'character' : true;
+}
+
 export async function runTurn(
   session: SimulatorSession,
   input: string,
@@ -22,6 +26,7 @@ export async function runTurn(
   const cleanInput = input.trim();
   if (!cleanInput) throw new Error('Enter a player turn first.');
   const { character, persona } = requireReady(session);
+  const characterPrimary = hasCharacterPrimary(session);
   const rerollIndex = options.rerollCharacterId
     ? session.transcript.findIndex((message) => message.id === options.rerollCharacterId && message.sender === 'character')
     : -1;
@@ -54,26 +59,39 @@ export async function runTurn(
     maxTokens: responseTokenLimit(session.settings.provider.maxTokens),
     reroll: isReroll,
   });
-  const reply = normalizeRoleplayReply(providerResult.text, playerMessage.text, character.name, persona.name);
+  const reply = normalizeRoleplayReply(
+    providerResult.text,
+    playerMessage.text,
+    character.name,
+    persona.name,
+    characterPrimary ? 'character' : 'narrator',
+  );
   const characterMessage: TranscriptMessage = {
     id: characterMessageId, turnId, sender: 'character', speaker: character.name, text: reply, timestamp: Date.now(),
   };
-  const evaluation = (options.scorer ?? heuristicRelationshipScorer).evaluate({
-    playerMessage: playerMessage.text,
-    characterReply: reply,
-    previousScore: relationshipBefore.score,
-  });
-  const relationships = commitRelationshipEvent(session.relationships, {
-    characterId: character.id,
-    personaId: persona.id,
-    turnId: characterMessage.id,
-    delta: evaluation.delta,
-    reason: evaluation.reason,
-    dimensionDeltas: evaluation.dimensionDeltas,
-    createdAt: characterMessage.timestamp,
-  });
-  const relationshipAfter = getRelationship(relationships, character.id, persona.id);
-  const relationshipEvent = relationshipAfter.events.find((event) => event.turnId === characterMessage.id) ?? null;
+
+  let relationships = session.relationships;
+  let relationshipAfter = relationshipBefore;
+  let relationshipEvent: unknown = null;
+  if (characterPrimary) {
+    const evaluation = (options.scorer ?? heuristicRelationshipScorer).evaluate({
+      playerMessage: playerMessage.text,
+      characterReply: reply,
+      previousScore: relationshipBefore.score,
+    });
+    relationships = commitRelationshipEvent(session.relationships, {
+      characterId: character.id,
+      personaId: persona.id,
+      turnId: characterMessage.id,
+      delta: evaluation.delta,
+      reason: evaluation.reason,
+      dimensionDeltas: evaluation.dimensionDeltas,
+      createdAt: characterMessage.timestamp,
+    });
+    relationshipAfter = getRelationship(relationships, character.id, persona.id);
+    relationshipEvent = relationshipAfter.events.find((event) => event.turnId === characterMessage.id) ?? null;
+  }
+
   const transcript = isReroll
     ? [...session.transcript.slice(0, rerollIndex), characterMessage, ...session.transcript.slice(rerollIndex + 1)]
     : [...transcriptBeforeReply, characterMessage];
@@ -84,8 +102,8 @@ export async function runTurn(
     inputEvent: playerMessage,
     perception,
     activeCast,
-    relationshipBefore,
-    relationshipAfter,
+    relationshipBefore: characterPrimary ? relationshipBefore : { status: 'not applicable to non-character primary asset' },
+    relationshipAfter: characterPrimary ? relationshipAfter : { status: 'not applicable to non-character primary asset' },
     relationshipEvent,
     compiledContext,
     provider: providerResult.metadata,
@@ -109,7 +127,9 @@ export function deleteCharacterTurn(session: SimulatorSession, messageId: string
   return {
     ...session,
     transcript: session.transcript.filter((candidate) => candidate.turnId !== message.turnId),
-    relationships: removeRelationshipTurns(session.relationships, character.id, persona.id, [message.id]),
+    relationships: hasCharacterPrimary(session)
+      ? removeRelationshipTurns(session.relationships, character.id, persona.id, [message.id])
+      : session.relationships,
     diagnostics: session.diagnostics.filter((entry) => entry.turnId !== message.id),
     updatedAt: Date.now(),
   };
