@@ -132,4 +132,5 @@ export type DiagnosticsSnapshot = {
   compiledContext: CompiledContext;
   provider: SafeProviderMetadata;
   finalReply: string;
+  previousReply?: string;
 };
