@@ -54,6 +54,9 @@ export const orbisLaunchPackageSchema = z.object({
   if (value.character && value.primaryAsset.type === 'character' && value.character.id !== value.primaryAsset.id) {
     context.addIssue({ code: 'custom', message: 'Primary character identity does not match the packaged character.' });
   }
+  if (value.character && value.primaryAsset.type !== 'character') {
+    context.addIssue({ code: 'custom', message: `A ${value.primaryAsset.type} primary asset cannot be packaged as the active character.` });
+  }
   if (value.catalog) {
     const expected = value.catalog.generation === 1
       ? `SPC-${value.catalog.prefix}-${value.catalog.plate}`
@@ -129,20 +132,29 @@ export function parseClientLaunchPackage(value: unknown): ClientLaunchPackage {
 }
 
 export function resolveSimulationSubject(value: ClientLaunchPackage): CharacterCard {
-  if (value.character) return value.character;
+  if (value.primaryAsset.type === 'character') {
+    if (!value.character) throw new Error('Character primary asset is missing its Character Card V2 payload.');
+    return value.character;
+  }
+
   const asset = value.primaryAsset;
   return {
     kind: 'character',
-    id: asset.id,
+    id: `speculus:narrator:${asset.id}`,
     spec: 'chara_card_v2',
-    name: asset.name,
-    description: `${asset.summary}\n\nPackaged ${asset.type} data:\n${JSON.stringify(asset.data, null, 2)}`.trim(),
-    personality: '',
+    name: 'SIMULATION NARRATOR',
+    description: `${asset.summary}\n\nPrimary entity type: ${asset.type}.\nPrimary entity name: ${asset.name}.`.trim(),
+    personality: 'Neutral, observational, canon-bound simulation narrator.',
     scenario: value.scene,
     firstMessage: '',
     exampleDialogue: '',
-    systemPrompt: `Act as the simulation narrator for the packaged ${asset.type} named ${asset.name}. Keep the selected asset central and do not impersonate the player.`,
+    systemPrompt: [
+      `Observe and simulate the packaged ${asset.type} named ${asset.name}.`,
+      `The primary asset is a ${asset.type}, not a character. Do not give it speech, thoughts, feelings, motives, or relationships.`,
+      'Only separately identified characters may speak, think, feel, or act as characters.',
+      'Keep the selected asset central and never impersonate the player.',
+    ].join(' '),
     postHistoryInstructions: '',
-    tags: [asset.type, 'orbis-packaged'],
+    tags: ['simulation-narrator', asset.type, 'orbis-packaged'],
   };
 }
