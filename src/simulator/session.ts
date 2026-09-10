@@ -11,6 +11,10 @@ export type SimulatorSession = {
   character: CharacterCard | null;
   persona: Persona | null;
   scene: string;
+  influence?: {
+    tags: string[];
+    freeform: string;
+  };
   transcript: TranscriptMessage[];
   relationships: RelationshipState;
   diagnostics: DiagnosticsSnapshot[];
@@ -32,6 +36,7 @@ export function createSession(now = Date.now(), launchPackage: ClientLaunchPacka
     character,
     persona: launchPackage?.persona ?? null,
     scene: launchPackage?.scene ?? '',
+    influence: { tags: [], freeform: '' },
     transcript: [],
     relationships: launchPackage?.relationshipState ?? {},
     diagnostics: [],
