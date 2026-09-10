@@ -1,4 +1,4 @@
-import { compileContext } from '../runtime/generation/compile-context';
+import { compileContext, responseTokenLimit } from '../runtime/generation/compile-context';
 import { normalizeRoleplayReply } from '../runtime/generation/format';
 import { resolveActiveCast, resolvePerception } from '../runtime/generation/perception';
 import { commitRelationshipEvent, getRelationship, removeRelationshipTurns } from '../runtime/relationships/core';
@@ -51,7 +51,7 @@ export async function runTurn(
     prompt: compiledContext.prompt,
     model: session.settings.provider.model,
     temperature: session.settings.provider.temperature,
-    maxTokens: session.settings.provider.maxTokens,
+    maxTokens: responseTokenLimit(session.settings.provider.maxTokens),
     reroll: isReroll,
   });
   const reply = normalizeRoleplayReply(providerResult.text, playerMessage.text, character.name, persona.name);
