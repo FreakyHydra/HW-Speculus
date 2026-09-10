@@ -3,8 +3,18 @@ import { stripModelControlTokens } from '../runtime/generation/format';
 import type { DiagnosticsSnapshot } from '../runtime/schema/types';
 import type { SimulatorSession } from '../simulator/session';
 
-const tabs = ['CONTEXT', 'KNOWLEDGE', 'PERCEPTION', 'CAST', 'RELATIONSHIP', 'PROVIDER', 'REROLL', 'TURNS', 'RAW'] as const;
-type Tab = (typeof tabs)[number];
+const tabs = [
+  { value: 'CONTEXT', label: 'CONTEXT' },
+  { value: 'KNOWLEDGE', label: 'KNOWLEDGE' },
+  { value: 'PERCEPTION', label: 'PERCEPTION' },
+  { value: 'CAST', label: 'CAST' },
+  { value: 'RELATIONSHIP', label: 'RELATIONS' },
+  { value: 'PROVIDER', label: 'PROVIDER' },
+  { value: 'REROLL', label: 'REROLL' },
+  { value: 'TURNS', label: 'TURNS' },
+  { value: 'RAW', label: 'RAW' },
+] as const;
+type Tab = (typeof tabs)[number]['value'];
 
 type TurnGroup = {
   turnId: string;
@@ -100,7 +110,7 @@ export function DiagnosticsPanel({ session, busy, onExportRaw, onImportRaw, onEx
       <span>MESSAGES {snapshot?.compiledContext.manifest.includedMessages ?? '—'}</span>
     </div>
     <nav className="diagnostic-tabs" aria-label="Diagnostic views">
-      {tabs.map((name) => <button className={tab === name ? 'active' : ''} key={name} onClick={() => setTab(name)}>{name}</button>)}
+      {tabs.map(({ value, label }) => <button className={tab === value ? 'active' : ''} key={value} onClick={() => setTab(value)}>{label}</button>)}
     </nav>
     {tab === 'TURNS' ? <div className="diagnostic-turns" tabIndex={0}>
       {turnGroups.length === 0 && <div className="diagnostic-turns__empty">NO TRANSCRIPT DATA</div>}
