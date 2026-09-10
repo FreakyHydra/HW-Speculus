@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { getResponseCalibration, responseTokenLimit } from '../src/runtime/generation/compile-context';
+import { normalizeRoleplayReply } from '../src/runtime/generation/format';
 import { resolveSimulationSubject } from '../src/runtime/schema/launch-package';
 import type { ClientLaunchPackage } from '../src/runtime/schema/types';
 import { persona } from './fixtures';
@@ -36,6 +37,11 @@ describe('Speculus usability and rails', () => {
     expect(subject.name).toBe('SIMULATION NARRATOR');
     expect(subject.id).not.toBe('place:old-mill');
     expect(subject.systemPrompt).toMatch(/place, not a character/i);
+  });
+
+  it('keeps unmarked narrator output as narration instead of dialogue', () => {
+    expect(normalizeRoleplayReply('The mill wheel creaks.', '', 'SIMULATION NARRATOR', '', 'narrator'))
+      .toBe('*The mill wheel creaks.*');
   });
 
   it('applies response calibration limits', () => {
