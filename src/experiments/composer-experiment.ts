@@ -65,8 +65,9 @@ function clickFormatAction(textarea: HTMLTextAreaElement, open: string, close: s
     return;
   }
 
-  // If the caret is sitting inside an empty smart pair, treat the click as a
-  // format switch instead of nesting another empty pair inside it.
+  // If the caret is inside an empty smart pair, clicking another format means
+  // "finish this segment and start the next one". Keep the existing pair,
+  // jump outside it, add one separator space, then open the newly requested pair.
   const emptyPair = enclosingPairAtCaret(textarea);
   if (emptyPair) {
     if (emptyPair.open === open && emptyPair.close === close) {
@@ -74,8 +75,14 @@ function clickFormatAction(textarea: HTMLTextAreaElement, open: string, close: s
       textarea.setSelectionRange(emptyPair.end, emptyPair.end);
       return;
     }
-    const next = `${textarea.value.slice(0, emptyPair.start)}${open}${close}${textarea.value.slice(emptyPair.end)}`;
-    setReactTextareaValue(textarea, next, emptyPair.start + 1);
+
+    const before = textarea.value.slice(0, emptyPair.end);
+    const after = textarea.value.slice(emptyPair.end);
+    const hasFollowingSpace = /^\s/.test(after);
+    const spacer = hasFollowingSpace ? '' : ' ';
+    const next = `${before}${spacer}${open}${close}${after}`;
+    const pairStart = emptyPair.end + spacer.length;
+    setReactTextareaValue(textarea, next, pairStart + 1);
     return;
   }
 
@@ -91,12 +98,14 @@ function clickFormatAction(textarea: HTMLTextAreaElement, open: string, close: s
   }
 
   // If the caret is directly after a completed formatted span, start the next
-  // format beside it instead of making the user reposition the caret.
+  // format beside it. At end-of-input add a separator automatically; if the
+  // user already typed whitespace, reuse it rather than doubling it.
   const completedCloser = previousChar === '*' || previousChar === '"' || previousChar === ']';
   if (completedCloser) {
-    const needsSpace = start < textarea.value.length && !/^\s/.test(textarea.value.slice(start));
-    const spacer = needsSpace ? ' ' : '';
-    const next = `${textarea.value.slice(0, start)}${spacer}${open}${close}${textarea.value.slice(start)}`;
+    const after = textarea.value.slice(start);
+    const hasFollowingSpace = /^\s/.test(after);
+    const spacer = hasFollowingSpace ? '' : ' ';
+    const next = `${textarea.value.slice(0, start)}${spacer}${open}${close}${after}`;
     setReactTextareaValue(textarea, next, start + spacer.length + 1);
     return;
   }
