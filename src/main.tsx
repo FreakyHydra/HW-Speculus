@@ -4,6 +4,7 @@ import { App } from './app/App';
 import { installAutoTurn } from './experiments/auto-turn';
 import { installComposerSafely } from './experiments/composer-bootstrap';
 import { installResponseCalibration } from './experiments/response-calibration';
+import { installRoleplayTextControls } from './experiments/roleplay-text-controls';
 import './styles/index.css';
 import './styles/resizable-panels.css';
 import './styles/diagnostic-turns.css';
@@ -14,5 +15,6 @@ import './styles/composer-experiment.css';
 
 installComposerSafely();
 installResponseCalibration();
+installRoleplayTextControls();
 installAutoTurn();
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
