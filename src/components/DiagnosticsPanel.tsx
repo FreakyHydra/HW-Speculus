@@ -86,12 +86,15 @@ export function DiagnosticsPanel({ session, busy, onExportRaw, onImportRaw, onEx
   const contextSections = snapshot?.compiledContext.manifest.includedSections.length;
 
   return <section className="panel diagnostics-panel">
-    <header className="panel-header"><span>DIAGNOSTICS</span><span className="lamp lamp-amber" /></header>
-    <select aria-label="Diagnostic turn" value={snapshot?.turnId ?? ''} onChange={(event) => setSelectedTurn(event.target.value)}>
-      {session.diagnostics.length === 0 && <option value="">NO TURN DATA</option>}
-      {session.diagnostics.map((entry) => <option key={entry.turnId} value={entry.turnId}>{entry.turnId}</option>)}
-    </select>
-    <div style={{ display: 'flex', gap: '10px', padding: '4px 8px 0', fontSize: '.58rem', opacity: .8 }}>
+    <header className="panel-header"><span>INSPECTOR / DEBUG</span><span><i className="lamp lamp-amber" /> LIVE</span></header>
+    <div className="diagnostic-turn-picker">
+      <label htmlFor="diagnostic-turn">TURN</label>
+      <select id="diagnostic-turn" aria-label="Diagnostic turn" value={snapshot?.turnId ?? ''} onChange={(event) => setSelectedTurn(event.target.value)}>
+        {session.diagnostics.length === 0 && <option value="">NO TURN DATA</option>}
+        {session.diagnostics.map((entry) => <option key={entry.turnId} value={entry.turnId}>{entry.turnId}</option>)}
+      </select>
+    </div>
+    <div className="diagnostic-stats">
       <span>CTX {typeof contextTokens === 'number' ? `~${contextTokens.toLocaleString()} TOK` : '—'}</span>
       <span>SECTIONS {typeof contextSections === 'number' ? contextSections : '—'}</span>
       <span>MESSAGES {snapshot?.compiledContext.manifest.includedMessages ?? '—'}</span>
@@ -109,17 +112,15 @@ export function DiagnosticsPanel({ session, busy, onExportRaw, onImportRaw, onEx
         </article>)}
       </section>)}
     </div> : <pre tabIndex={0}>{jsonOutput}</pre>}
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', margin: '0 8px 8px' }}>
+    <div className="diagnostic-actions">
       <button
         className="terminal-button"
-        style={{ gridColumn: '1 / -1' }}
         onClick={() => void navigator.clipboard?.writeText(copyOutput)}
       >COPY BUFFER</button>
       <button className="terminal-button" disabled={busy} onClick={onExportRaw}>EXPORT RAW</button>
       <button className="terminal-button" disabled={busy} onClick={onImportRaw}>IMPORT RAW</button>
       <button
-        className="terminal-button"
-        style={{ gridColumn: '1 / -1' }}
+        className="terminal-button exit-button"
         disabled={busy}
         onClick={onExitSimulator}
       >EXIT SIMULATOR</button>
