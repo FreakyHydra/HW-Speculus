@@ -131,10 +131,14 @@ function smartPairKeydown(event: KeyboardEvent, textarea: HTMLTextAreaElement) {
   }
 
   // Space always remains normal typing. Tab is the unambiguous fast escape
-  // when the caret is directly before a smart-pair closer.
+  // when the caret is directly before a smart-pair closer. Exiting the pair
+  // also adds one normal separator space unless whitespace already follows.
   if (event.key === 'Tab' && start === end && (nextChar === '*' || nextChar === '"' || nextChar === ']')) {
     event.preventDefault();
-    textarea.setSelectionRange(start + 1, start + 1);
+    const afterCloser = textarea.value.slice(start + 1);
+    const spacer = /^\s/.test(afterCloser) ? '' : ' ';
+    const next = `${textarea.value.slice(0, start + 1)}${spacer}${afterCloser}`;
+    setReactTextareaValue(textarea, next, start + 1 + spacer.length);
     return true;
   }
 
