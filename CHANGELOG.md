@@ -2,6 +2,21 @@
 
 Speculus uses a human-readable release version plus a 7-character Git build id shown in the terminal, for example `v0.2.0+5890c7b`.
 
+## [0.3.0] - 2026-09-10
+
+### Added
+- Terminal-first workstation mode with independently collapsible Package and Debug panels.
+- Compact header view controls and an explicit Debug mode indicator.
+- Progressive-disclosure sections for the package manifest and control deck.
+
+### Changed
+- The terminal now owns the available workspace whenever either side panel is closed.
+- Debug tools are hidden by default for new sessions and remain available in a dedicated inspector.
+- Package essentials remain visible while low-frequency metadata and display/model controls stay collapsed until needed.
+- Reduced panel widths, header height, control padding, transcript spacing, diagnostic density, and composer-tool footprint.
+- Diagnostics tabs now use a compact scrollable instrument strip instead of oversized wrapped button tiles.
+- Reorganized raw transfer, buffer copy, and exit controls into a compact inspector action bank.
+
 ## [0.2.0] - 2026-09-10
 
 ### Added

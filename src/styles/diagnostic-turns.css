@@ -1,6 +1,6 @@
 .diagnostic-turns {
-  margin: 0 8px 8px;
-  padding: 8px;
+  margin: 0 7px 6px;
+  padding: 6px;
   overflow: auto;
   max-height: calc(100vh - 260px);
   border: 1px solid var(--line);
@@ -17,7 +17,7 @@
 }
 
 .diagnostic-turn {
-  margin-bottom: 10px;
+  margin-bottom: 7px;
   border: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
@@ -30,16 +30,16 @@
 }
 
 .diagnostic-turn > header {
-  padding: 6px 8px;
+  padding: 5px 7px;
   border-bottom: 1px solid var(--line);
   background: var(--surface-raised);
   color: var(--accent-bright);
-  font-size: .63rem;
+  font-size: .57rem;
   letter-spacing: .12em;
 }
 
 .diagnostic-turn__message {
-  padding: 9px;
+  padding: 7px;
   border-bottom: 1px dotted var(--line);
 }
 
@@ -53,9 +53,9 @@
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   color: var(--muted);
-  font-size: .58rem;
+  font-size: .53rem;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -71,7 +71,7 @@
 
 .diagnostic-turn__text {
   color: var(--diagnostic);
-  font: .72rem/1.55 "Courier New", monospace;
+  font: .65rem/1.48 "Courier New", monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;

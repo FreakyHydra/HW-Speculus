@@ -3,12 +3,12 @@
   height: 100%;
   max-height: none;
   overflow: auto;
-  padding: 14px 16px 18px;
+  padding: 10px 12px 14px;
 }
 
 .live-transcript .message {
-  margin-bottom: 14px;
-  padding: 8px 12px 10px;
+  margin-bottom: 10px;
+  padding: 6px 9px 8px;
   background: transparent;
   border-left: 2px solid var(--line-strong);
 }
@@ -19,15 +19,15 @@
 }
 
 .live-transcript .message-meta {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   color: var(--muted-strong);
   font-size: .62rem;
   letter-spacing: .08em;
 }
 
 .live-transcript .message-text {
-  font-size: 1.03rem;
-  line-height: 1.7;
+  font-size: .96rem;
+  line-height: 1.62;
 }
 
 .live-transcript .message-actions {

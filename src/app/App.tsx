@@ -18,7 +18,8 @@ type PanelLayout = { left: number; right: number };
 
 const PANEL_LAYOUT_KEY = 'speculus-panel-layout';
 const DIAGNOSTICS_VISIBILITY_KEY = 'speculus-diagnostics-visible';
-const DEFAULT_PANEL_LAYOUT: PanelLayout = { left: 370, right: 500 };
+const PACKAGE_VISIBILITY_KEY = 'speculus-package-visible';
+const DEFAULT_PANEL_LAYOUT: PanelLayout = { left: 272, right: 420 };
 const MIN_LEFT_PANEL = 220;
 const MAX_LEFT_PANEL = 620;
 const MIN_RIGHT_PANEL = 300;
@@ -43,7 +44,11 @@ function loadPanelLayout(): PanelLayout {
 }
 
 function loadDiagnosticsVisible() {
-  return window.localStorage.getItem(DIAGNOSTICS_VISIBILITY_KEY) !== 'false';
+  return window.localStorage.getItem(DIAGNOSTICS_VISIBILITY_KEY) === 'true';
+}
+
+function loadPackageVisible() {
+  return window.localStorage.getItem(PACKAGE_VISIBILITY_KEY) !== 'false';
 }
 
 async function claimLaunch(code: string): Promise<ClientLaunchPackage> {
@@ -66,6 +71,7 @@ export function App() {
   });
   const [panelLayout, setPanelLayout] = useState<PanelLayout>(loadPanelLayout);
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(loadDiagnosticsVisible);
+  const [packageVisible, setPackageVisible] = useState(loadPackageVisible);
   const [dragging, setDragging] = useState<SplitterSide | null>(null);
   const workstationRef = useRef<HTMLDivElement>(null);
   const importSessionRef = useRef<HTMLInputElement>(null);
@@ -82,6 +88,10 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem(DIAGNOSTICS_VISIBILITY_KEY, String(diagnosticsVisible));
   }, [diagnosticsVisible]);
+
+  useEffect(() => {
+    window.localStorage.setItem(PACKAGE_VISIBILITY_KEY, String(packageVisible));
+  }, [packageVisible]);
 
   useEffect(() => {
     let cancelled = false;
@@ -258,45 +268,59 @@ export function App() {
   return <main className={`terminal-frame ${session.settings.crtMotion ? '' : 'motion-off'}`}>
     <div className="screen-noise" aria-hidden="true" />
     <header className="system-header">
-      <div><span className="system-mark" title={catalog.classification}>{catalog.code}</span><h1>SPECULUS</h1><p>FIELD TERMINAL / ORBIS SIMULATION RECEIVER</p></div>
-      <div className="status-bank"><span><i className="lamp lamp-green" />CORE</span><span><i className="lamp lamp-green" />ORBIS</span><span><i className="lamp lamp-green" />MODEL</span></div>
+      <div className="system-identity"><span className="system-mark" title={catalog.classification}>{catalog.code}</span><h1>SPECULUS</h1><p>FIELD TERMINAL / ORBIS SIMULATION RECEIVER</p></div>
+      <div className="header-controls">
+        <div className="status-bank"><span><i className="lamp lamp-green" />CORE</span><span><i className="lamp lamp-green" />ORBIS</span><span><i className="lamp lamp-green" />MODEL</span></div>
+        <nav className="view-controls" aria-label="Workstation views">
+          <button type="button" className={packageVisible ? 'active' : ''} aria-pressed={packageVisible} onClick={() => { setDragging(null); setPackageVisible((visible) => !visible); }}>PACKAGE</button>
+          <button type="button" className={diagnosticsVisible ? 'active debug-active' : ''} aria-pressed={diagnosticsVisible} onClick={() => { setDragging(null); setDiagnosticsVisible((visible) => !visible); }}><i className={`lamp ${diagnosticsVisible ? 'lamp-amber' : ''}`} /> DEBUG</button>
+        </nav>
+      </div>
     </header>
 
-    <div ref={workstationRef} className={`workstation resizable-workstation ${dragging ? 'is-resizing' : ''} ${diagnosticsVisible ? '' : 'diagnostics-hidden'}`} style={workstationStyle}>
-      <aside className="panel subject-panel">
+    <div ref={workstationRef} className={`workstation resizable-workstation ${dragging ? 'is-resizing' : ''} ${diagnosticsVisible ? '' : 'diagnostics-hidden'} ${packageVisible ? '' : 'package-hidden'}`} style={workstationStyle}>
+      {packageVisible && <aside className="panel subject-panel">
         <header className="panel-header"><span>PACKAGE</span><span>VER. 1</span></header>
-        <dl>
-          <dt>SPECULUS ID</dt><dd>{catalog.code}</dd>
-          <dt>CLASSIFICATION</dt><dd>{catalog.classification}</dd>
-          <dt>PRIMARY ASSET</dt><dd>{source.name}</dd>
-          <dt>ASSET TYPE</dt><dd>{source.type.toLocaleUpperCase('en-US')}</dd>
-          <dt>SOURCE REVISION</dt><dd>{source.revision}</dd>
-          <dt>ACTIVE SUBJECT</dt><dd>{session.character?.name ?? 'SIMULATION NARRATOR'}</dd>
-          <dt>PERSONA</dt><dd>{session.persona?.name ?? 'PACKAGE FAULT'}</dd>
-          <dt>RELATED RECORDS</dt><dd>{session.launchPackage!.relatedAssets.length}</dd>
-          <dt>RELATIONSHIP</dt><dd>{relationship ? `${relationship.label} / ${relationship.score}` : 'NO LINK'}</dd>
-          <dt>LAUNCH ID</dt><dd>{session.launchPackage!.launchId}</dd>
-        </dl>
-        <label className="field-label">ACTIVE SCENE
-          <textarea rows={7} value={session.scene} onChange={(event) => updateScene(event.target.value)} />
-        </label>
-        <section className="control-group">
-          <div className="micro-label">MODEL BRIDGE</div>
-          <div className="data-readout"><span>ROUTE</span><strong>ORBIS SHARED API</strong></div>
-          <div className="data-readout"><span>MODEL</span><strong>{session.settings.provider.model}</strong></div>
-          <div className="data-readout"><span>CREDENTIAL</span><strong>SERVER SEALED</strong></div>
-          <label className="toggle"><input type="checkbox" checked={session.settings.crtMotion} onChange={(event) => setSession({ ...session, settings: { ...session.settings, crtMotion: event.target.checked } })} /> CRT MOTION</label>
-          <label className="theme-select">DISPLAY THEME
-            <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>
-              <option value="dark">BLUE MOON DARK</option>
-              <option value="light">BLUE MOON LIGHT</option>
-              <option value="auto">AUTO</option>
-            </select>
-          </label>
+        <section className="subject-summary" aria-label="Active simulation summary">
+          <div><span>SUBJECT</span><strong>{session.character?.name ?? 'SIMULATION NARRATOR'}</strong></div>
+          <div><span>PERSONA</span><strong>{session.persona?.name ?? 'PACKAGE FAULT'}</strong></div>
+          <div><span>RELATION</span><strong>{relationship ? `${relationship.label} / ${relationship.score}` : 'NO LINK'}</strong></div>
         </section>
-      </aside>
+        <label className="field-label">ACTIVE SCENE
+          <textarea rows={5} value={session.scene} onChange={(event) => updateScene(event.target.value)} />
+        </label>
+        <details className="panel-disclosure">
+          <summary>PACKAGE MANIFEST <span>{source.type.toLocaleUpperCase('en-US')} / {session.launchPackage!.relatedAssets.length} LINKED</span></summary>
+          <dl>
+            <dt>SPECULUS ID</dt><dd>{catalog.code}</dd>
+            <dt>CLASSIFICATION</dt><dd>{catalog.classification}</dd>
+            <dt>PRIMARY ASSET</dt><dd>{source.name}</dd>
+            <dt>ASSET TYPE</dt><dd>{source.type.toLocaleUpperCase('en-US')}</dd>
+            <dt>SOURCE REVISION</dt><dd>{source.revision}</dd>
+            <dt>RELATED RECORDS</dt><dd>{session.launchPackage!.relatedAssets.length}</dd>
+            <dt>LAUNCH ID</dt><dd>{session.launchPackage!.launchId}</dd>
+          </dl>
+        </details>
+        <details className="panel-disclosure">
+          <summary>CONTROL DECK <span>DISPLAY / RESPONSE</span></summary>
+          <section className="control-group">
+            <div className="micro-label">MODEL BRIDGE</div>
+            <div className="data-readout"><span>ROUTE</span><strong>ORBIS SHARED API</strong></div>
+            <div className="data-readout"><span>MODEL</span><strong>{session.settings.provider.model}</strong></div>
+            <div className="data-readout"><span>CREDENTIAL</span><strong>SERVER SEALED</strong></div>
+            <label className="toggle"><input type="checkbox" checked={session.settings.crtMotion} onChange={(event) => setSession({ ...session, settings: { ...session.settings, crtMotion: event.target.checked } })} /> CRT MOTION</label>
+            <label className="theme-select">DISPLAY THEME
+              <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>
+                <option value="dark">BLUE MOON DARK</option>
+                <option value="light">BLUE MOON LIGHT</option>
+                <option value="auto">AUTO</option>
+              </select>
+            </label>
+          </section>
+        </details>
+      </aside>}
 
-      <div
+      {packageVisible && <div
         className="panel-splitter panel-splitter--left"
         role="separator"
         aria-label="Resize package and terminal panels"
@@ -309,7 +333,7 @@ export function App() {
         onPointerDown={(event) => startResize('left', event)}
         onDoubleClick={() => resetPanel('left')}
         onKeyDown={(event) => resizeWithKeyboard('left', event)}
-      ><span aria-hidden="true" /></div>
+      ><span aria-hidden="true" /></div>}
 
       <section className="panel terminal-panel">
         <header className="panel-header">
@@ -325,7 +349,7 @@ export function App() {
                 setDragging(null);
                 setDiagnosticsVisible((visible) => !visible);
               }}
-            >{diagnosticsVisible ? 'HIDE SIDE PANEL' : 'SHOW SIDE PANEL'}</button>
+            >{diagnosticsVisible ? 'CLOSE DEBUG' : 'OPEN DEBUG'}</button>
           </span>
         </header>
         <Transcript messages={session.transcript} busy={busy} onReroll={(message) => {
@@ -340,7 +364,8 @@ export function App() {
         {error && <div className="error-line" role="alert">FAULT: {error}</div>}
         <footer className="terminal-actions">
           <input ref={importSessionRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={(event) => void importSession(event.target.files?.[0])} />
-          <span>SESSION MEDIUM: ACTIVE</span>
+          <span><i className="lamp lamp-green" /> SESSION ACTIVE</span>
+          <span className="terminal-actions-hint">COMPOSER TOOLS BELOW INPUT</span>
         </footer>
       </section>
 
