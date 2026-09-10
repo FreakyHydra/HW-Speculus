@@ -1,0 +1,76 @@
+.composer-helper-row {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: -2px;
+}
+
+.composer-helper-button {
+  border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--surface-raised) 52%, transparent);
+  color: var(--muted-strong);
+  padding: 3px 6px;
+  font: .58rem/1.2 "Courier New", Courier, monospace;
+  letter-spacing: .05em;
+  cursor: pointer;
+}
+
+.composer-helper-button:hover,
+.composer-helper-button:focus-visible {
+  color: var(--blue-bright);
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 10%, var(--surface-raised));
+  outline: none;
+}
+
+.composer-key-hint {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: .54rem;
+  letter-spacing: .07em;
+  white-space: nowrap;
+}
+
+.composer-experiment-toggle {
+  opacity: .9;
+}
+
+/* CRT MOTION was previously almost invisible: only 1.2% noise and cursor blink moved.
+   Keep the static CRT treatment intact, but make the enabled motion perceptible and restrained. */
+.terminal-frame:not(.motion-off)::after {
+  animation: crt-scan-drift 7s linear infinite, crt-flicker 4.5s steps(1) infinite;
+}
+
+.terminal-frame:not(.motion-off) .screen-noise {
+  opacity: .026;
+  animation: noise .18s steps(2) infinite;
+}
+
+@keyframes crt-scan-drift {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(1px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes crt-flicker {
+  0%, 93%, 100% { opacity: .72; }
+  94% { opacity: .66; }
+  95% { opacity: .74; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-frame:not(.motion-off)::after,
+  .terminal-frame:not(.motion-off) .screen-noise {
+    animation: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .composer-key-hint {
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
