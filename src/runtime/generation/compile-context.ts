@@ -38,6 +38,7 @@ export function compileContext(input: {
   scene: string;
   transcript: TranscriptMessage[];
   relationship: Relationship;
+  influence?: { tags?: string[]; freeform?: string };
   launchPackage?: ClientLaunchPackage | null;
   reroll?: boolean;
 }): CompiledContext {
@@ -97,6 +98,15 @@ export function compileContext(input: {
       input.launchPackage.primaryAsset.summary,
       ...input.launchPackage.contextBlocks.map((block) => `${block.title}:\n${block.content}`),
     ].filter(Boolean).join('\n\n')]);
+  }
+  const influenceTags = (input.influence?.tags ?? []).map((tag) => tag.trim()).filter(Boolean);
+  const freeformInfluence = input.influence?.freeform?.trim() ?? '';
+  if (influenceTags.length || freeformInfluence) {
+    sections.push(['influence', [
+      'Treat the following as soft steering for this simulation. It may shape tone, emphasis, pacing, or behavior, but it must not override established canon, known facts, or system rules.',
+      influenceTags.length ? `Influence tags: ${influenceTags.join(', ')}` : '',
+      freeformInfluence ? `Freeform influence:\n${freeformInfluence}` : '',
+    ].filter(Boolean).join('\n')]);
   }
   if (input.reroll) sections.push(['reroll', 'Generate a genuinely different reaction from the same preceding player turn while preserving canon and continuity.']);
   const history = input.transcript.slice(-20).map((message) => {
