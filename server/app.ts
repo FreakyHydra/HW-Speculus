@@ -1,4 +1,4 @@
-import { randomUUID, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type Response } from 'express';
@@ -17,7 +17,8 @@ const generationRequestSchema = z.object({
 });
 
 const launchCodes = new Map<string, OrbisLaunchPackage>();
-const generationSessions = new Map<string, GenerationSession>();
+const SESSION_COOKIE = 'speculus_session';
+const SESSION_VERSION = 1;
 
 function equalSecret(left: string, right: string): boolean {
   const a = Buffer.from(left);
@@ -34,10 +35,51 @@ function cookie(request: Request, name: string): string {
   return pair ? decodeURIComponent(pair.slice(name.length + 1)) : '';
 }
 
+function sessionKey(): Buffer {
+  const secret = process.env.SPECULUS_BRIDGE_SECRET ?? '';
+  if (!secret) throw new Error('Speculus bridge secret is not configured.');
+  return createHash('sha256').update(`speculus-session-v${SESSION_VERSION}:${secret}`).digest();
+}
+
+function sealSession(session: GenerationSession): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', sessionKey(), iv);
+  const plaintext = Buffer.from(JSON.stringify({ version: SESSION_VERSION, ...session }), 'utf8');
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString('base64url')}.${tag.toString('base64url')}.${ciphertext.toString('base64url')}`;
+}
+
+function openSession(value: string): GenerationSession | null {
+  if (!value) return null;
+  try {
+    const [ivValue, tagValue, ciphertextValue] = value.split('.');
+    if (!ivValue || !tagValue || !ciphertextValue) return null;
+    const decipher = createDecipheriv('aes-256-gcm', sessionKey(), Buffer.from(ivValue, 'base64url'));
+    decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
+    const plaintext = Buffer.concat([
+      decipher.update(Buffer.from(ciphertextValue, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8');
+    const parsed = JSON.parse(plaintext) as Partial<GenerationSession> & { version?: number };
+    if (parsed.version !== SESSION_VERSION) return null;
+    if (typeof parsed.launchId !== 'string' || typeof parsed.generationGrant !== 'string') return null;
+    if (!parsed.source || typeof parsed.source.id !== 'string' || typeof parsed.source.revision !== 'string' || typeof parsed.source.type !== 'string') return null;
+    if (typeof parsed.expiresAt !== 'number' || parsed.expiresAt <= Date.now()) return null;
+    return {
+      launchId: parsed.launchId,
+      generationGrant: parsed.generationGrant,
+      source: parsed.source as GenerationSession['source'],
+      expiresAt: parsed.expiresAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function pruneExpired(): void {
   const now = Date.now();
   for (const [key, value] of launchCodes) if (value.expiresAt <= now) launchCodes.delete(key);
-  for (const [key, value] of generationSessions) if (value.expiresAt <= now) generationSessions.delete(key);
 }
 
 export function createApp(options: { production?: boolean } = {}) {
@@ -59,27 +101,28 @@ export function createApp(options: { production?: boolean } = {}) {
     } catch (error) { next(error); }
   });
 
-  app.get('/api/launch/:code', (request, response) => {
-    pruneExpired();
-    const launchPackage = launchCodes.get(request.params.code);
-    if (!launchPackage) return response.status(404).json({ error: 'Simulation package is missing, expired, or already claimed.' });
-    launchCodes.delete(request.params.code);
-    const sessionId = randomUUID();
-    generationSessions.set(sessionId, {
-      launchId: launchPackage.launchId,
-      generationGrant: launchPackage.generationGrant,
-      source: { id: launchPackage.primaryAsset.id, revision: launchPackage.primaryAsset.revision, type: launchPackage.primaryAsset.type },
-      expiresAt: launchPackage.expiresAt,
-    });
-    const lifetime = Math.max(1, Math.floor((launchPackage.expiresAt - Date.now()) / 1000));
-    response.setHeader('Set-Cookie', `speculus_session=${encodeURIComponent(sessionId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${lifetime}${options.production ? '; Secure' : ''}`);
-    response.json({ package: clientLaunchPackage(launchPackage) });
+  app.get('/api/launch/:code', (request, response, next) => {
+    try {
+      pruneExpired();
+      const launchPackage = launchCodes.get(request.params.code);
+      if (!launchPackage) return response.status(404).json({ error: 'Simulation package is missing, expired, or already claimed.' });
+      launchCodes.delete(request.params.code);
+      const generationSession: GenerationSession = {
+        launchId: launchPackage.launchId,
+        generationGrant: launchPackage.generationGrant,
+        source: { id: launchPackage.primaryAsset.id, revision: launchPackage.primaryAsset.revision, type: launchPackage.primaryAsset.type },
+        expiresAt: launchPackage.expiresAt,
+      };
+      const lifetime = Math.max(1, Math.floor((launchPackage.expiresAt - Date.now()) / 1000));
+      response.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(sealSession(generationSession))}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${lifetime}${options.production ? '; Secure' : ''}`);
+      response.json({ package: clientLaunchPackage(launchPackage) });
+    } catch (error) { next(error); }
   });
 
   app.post('/api/generate', async (request, response, next) => {
     try {
       pruneExpired();
-      const session = generationSessions.get(cookie(request, 'speculus_session'));
+      const session = openSession(cookie(request, SESSION_COOKIE));
       if (!session) return response.status(401).json({ error: 'No active Orbis simulation authorization. Launch the item again.' });
       const body = generationRequestSchema.parse(request.body);
       response.json(await generateThroughOrbis(session, body));
