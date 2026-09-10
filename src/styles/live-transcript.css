@@ -26,8 +26,8 @@
 }
 
 .live-transcript .message-text {
-  font-size: .96rem;
-  line-height: 1.62;
+  font-size: var(--rp-font-size, .96rem);
+  line-height: var(--rp-line-height, 1.62);
 }
 
 .live-transcript .message-actions {
