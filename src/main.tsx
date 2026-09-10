@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
+import { installAutoScrollToggle } from './experiments/auto-scroll';
 import { installAutoTurn } from './experiments/auto-turn';
 import { installComposerSafely } from './experiments/composer-bootstrap';
 import { installResponseCalibration } from './experiments/response-calibration';
@@ -15,4 +16,5 @@ import './styles/composer-experiment.css';
 installComposerSafely();
 installResponseCalibration();
 installAutoTurn();
+installAutoScrollToggle();
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
