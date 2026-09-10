@@ -2,6 +2,13 @@ import { useEffect, useRef } from 'react';
 import { stripModelControlTokens } from '../runtime/generation/format';
 import type { TranscriptMessage } from '../runtime/schema/types';
 
+const AUTO_SCROLL_KEY = 'speculus-auto-scroll';
+
+function autoScrollEnabled(): boolean {
+  if (typeof window === 'undefined') return true;
+  return window.localStorage.getItem(AUTO_SCROLL_KEY) !== 'false';
+}
+
 function RenderedMessage({ text }: { text: string }) {
   const tokens = stripModelControlTokens(text).trim().split(/(\*[^*]+\*|"[^"]+"|\[[^\]]+\])/g).filter(Boolean);
   return <>{tokens.map((token, index) => {
@@ -20,9 +27,10 @@ export function Transcript(props: {
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!autoScrollEnabled()) return;
     const node = end.current;
     if (!node || typeof node.scrollIntoView !== 'function') return;
-    node.scrollIntoView({ behavior: 'smooth' });
+    node.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [props.messages.length]);
 
   return <div className="transcript live-transcript" aria-live="polite">
