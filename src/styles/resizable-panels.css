@@ -3,11 +3,27 @@
     grid-template-columns:
       minmax(220px, var(--package-panel-width, 370px))
       8px
-      minmax(420px, 1fr);
+      minmax(420px, 1fr)
+      8px
+      minmax(300px, var(--diagnostics-panel-width, 500px));
     gap: 0;
   }
 
+  .resizable-workstation.diagnostics-hidden {
+    grid-template-columns:
+      minmax(220px, var(--package-panel-width, 370px))
+      8px
+      minmax(420px, 1fr);
+  }
+
   .resizable-workstation.package-hidden {
+    grid-template-columns:
+      minmax(420px, 1fr)
+      8px
+      minmax(300px, var(--diagnostics-panel-width, 500px));
+  }
+
+  .resizable-workstation.package-hidden.diagnostics-hidden {
     grid-template-columns: minmax(420px, 1fr);
   }
 
@@ -70,27 +86,12 @@
 }
 
 .debug-drawer {
-  position: absolute;
-  top: 6px;
-  right: 0;
-  bottom: 6px;
-  z-index: 12;
-  display: grid;
-  grid-template-columns: 8px minmax(300px, 1fr);
-  width: min(var(--diagnostics-panel-width, 500px), calc(100% - 48px));
-  min-height: 0;
-  filter: drop-shadow(-14px 0 24px var(--shadow));
-  animation: debug-drawer-in .16s ease-out;
+  display: contents;
 }
 
 .debug-drawer .diagnostics-panel {
   border-color: var(--line-strong);
   background: color-mix(in srgb, var(--surface) 99%, transparent);
-}
-
-@keyframes debug-drawer-in {
-  from { opacity: 0; transform: translateX(18px); }
-  to { opacity: 1; transform: translateX(0); }
 }
 
 .panel-header-actions {
@@ -127,16 +128,5 @@
     gap: 6px;
   }
 
-  .debug-drawer {
-    position: fixed;
-    inset: 52px 7px 35px;
-    z-index: 40;
-    display: block;
-    width: auto;
-    filter: drop-shadow(0 0 26px var(--shadow));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .debug-drawer { animation: none; }
+  .debug-drawer { display: contents; }
 }
