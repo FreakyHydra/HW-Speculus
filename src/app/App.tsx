@@ -13,13 +13,15 @@ import { clearSession, loadSession, saveSession } from '../storage/session-stora
 
 type BootState = { status: 'receiving' | 'ready' | 'error'; error?: string };
 type ThemeMode = 'dark' | 'light' | 'auto';
+type PaletteMode = 'blue' | 'green' | 'amber' | 'violet' | 'mono';
 type SplitterSide = 'left' | 'right';
 type PanelLayout = { left: number; right: number };
 
 const PANEL_LAYOUT_KEY = 'speculus-panel-layout';
 const DIAGNOSTICS_VISIBILITY_KEY = 'speculus-diagnostics-visible';
 const PACKAGE_VISIBILITY_KEY = 'speculus-package-visible';
-const DEFAULT_PANEL_LAYOUT: PanelLayout = { left: 272, right: 420 };
+const PALETTE_KEY = 'speculus-palette';
+const DEFAULT_PANEL_LAYOUT: PanelLayout = { left: 272, right: 500 };
 const MIN_LEFT_PANEL = 220;
 const MAX_LEFT_PANEL = 620;
 const MIN_RIGHT_PANEL = 300;
@@ -51,6 +53,11 @@ function loadPackageVisible() {
   return window.localStorage.getItem(PACKAGE_VISIBILITY_KEY) !== 'false';
 }
 
+function loadPalette(): PaletteMode {
+  const saved = window.localStorage.getItem(PALETTE_KEY);
+  return saved === 'green' || saved === 'amber' || saved === 'violet' || saved === 'mono' ? saved : 'blue';
+}
+
 async function claimLaunch(code: string): Promise<ClientLaunchPackage> {
   const response = await fetch(`/api/launch/${encodeURIComponent(code)}`);
   const body = await response.json() as { package?: unknown; error?: string };
@@ -69,6 +76,7 @@ export function App() {
     const saved = window.localStorage.getItem('speculus-theme');
     return saved === 'light' || saved === 'auto' || saved === 'dark' ? saved : 'dark';
   });
+  const [palette, setPalette] = useState<PaletteMode>(loadPalette);
   const [panelLayout, setPanelLayout] = useState<PanelLayout>(loadPanelLayout);
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(loadDiagnosticsVisible);
   const [packageVisible, setPackageVisible] = useState(loadPackageVisible);
@@ -80,6 +88,11 @@ export function App() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem('speculus-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.palette = palette;
+    window.localStorage.setItem(PALETTE_KEY, palette);
+  }, [palette]);
 
   useEffect(() => {
     window.localStorage.setItem(PANEL_LAYOUT_KEY, JSON.stringify(panelLayout));
@@ -136,15 +149,13 @@ export function App() {
     const available = workstation.getBoundingClientRect().width;
     setPanelLayout((current) => {
       if (side === 'left') {
-        const reservedRight = diagnosticsVisible ? current.right : 0;
-        const reservedSplitters = diagnosticsVisible ? SPLITTER_SPACE : SPLITTER_SPACE / 2;
-        const max = Math.max(MIN_LEFT_PANEL, Math.min(MAX_LEFT_PANEL, available - reservedRight - MIN_TERMINAL_PANEL - reservedSplitters));
+        const max = Math.max(MIN_LEFT_PANEL, Math.min(MAX_LEFT_PANEL, available - MIN_TERMINAL_PANEL - SPLITTER_SPACE / 2));
         return { ...current, left: clamp(requestedWidth, MIN_LEFT_PANEL, max) };
       }
-      const max = Math.max(MIN_RIGHT_PANEL, Math.min(MAX_RIGHT_PANEL, available - current.left - MIN_TERMINAL_PANEL - SPLITTER_SPACE));
+      const max = Math.max(MIN_RIGHT_PANEL, Math.min(MAX_RIGHT_PANEL, available - 48));
       return { ...current, right: clamp(requestedWidth, MIN_RIGHT_PANEL, max) };
     });
-  }, [diagnosticsVisible]);
+  }, []);
 
   useEffect(() => {
     if (!dragging) return;
@@ -275,6 +286,29 @@ export function App() {
           <button type="button" className={packageVisible ? 'active' : ''} aria-pressed={packageVisible} onClick={() => { setDragging(null); setPackageVisible((visible) => !visible); }}>PACKAGE</button>
           <button type="button" className={diagnosticsVisible ? 'active debug-active' : ''} aria-pressed={diagnosticsVisible} onClick={() => { setDragging(null); setDiagnosticsVisible((visible) => !visible); }}><i className={`lamp ${diagnosticsVisible ? 'lamp-amber' : ''}`} /> DEBUG</button>
         </nav>
+        <details className="display-menu">
+          <summary>DISPLAY</summary>
+          <section className="display-menu__panel">
+            <span className="display-menu__label">PHOSPHOR COLOR</span>
+            <div className="palette-grid" role="group" aria-label="Phosphor color">
+              {([
+                ['blue', 'BLUE MOON'],
+                ['green', 'GREEN'],
+                ['amber', 'AMBER'],
+                ['violet', 'VIOLET'],
+                ['mono', 'MONO'],
+              ] as const).map(([value, label]) => <button type="button" key={value} className={palette === value ? 'active' : ''} aria-pressed={palette === value} onClick={() => setPalette(value)}><i className={`palette-swatch palette-swatch--${value}`} />{label}</button>)}
+            </div>
+            <label>BRIGHTNESS
+              <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>
+                <option value="dark">NIGHT</option>
+                <option value="light">DAY</option>
+                <option value="auto">SYSTEM</option>
+              </select>
+            </label>
+            <label className="toggle"><input type="checkbox" checked={session.settings.crtMotion} onChange={(event) => setSession({ ...session, settings: { ...session.settings, crtMotion: event.target.checked } })} /> CRT MOTION</label>
+          </section>
+        </details>
       </div>
     </header>
 
@@ -308,14 +342,7 @@ export function App() {
             <div className="data-readout"><span>ROUTE</span><strong>ORBIS SHARED API</strong></div>
             <div className="data-readout"><span>MODEL</span><strong>{session.settings.provider.model}</strong></div>
             <div className="data-readout"><span>CREDENTIAL</span><strong>SERVER SEALED</strong></div>
-            <label className="toggle"><input type="checkbox" checked={session.settings.crtMotion} onChange={(event) => setSession({ ...session, settings: { ...session.settings, crtMotion: event.target.checked } })} /> CRT MOTION</label>
-            <label className="theme-select">DISPLAY THEME
-              <select value={theme} onChange={(event) => setTheme(event.target.value as ThemeMode)}>
-                <option value="dark">BLUE MOON DARK</option>
-                <option value="light">BLUE MOON LIGHT</option>
-                <option value="auto">AUTO</option>
-              </select>
-            </label>
+            <div className="data-readout"><span>DISPLAY</span><strong>{palette.toLocaleUpperCase('en-US')} / {theme.toLocaleUpperCase('en-US')}</strong></div>
           </section>
         </details>
       </aside>}
@@ -369,7 +396,7 @@ export function App() {
         </footer>
       </section>
 
-      {diagnosticsVisible && <>
+      {diagnosticsVisible && <aside className="debug-drawer" aria-label="Debug inspector" style={{ '--diagnostics-panel-width': `${panelLayout.right}px` } as CSSProperties}>
         <div
           className="panel-splitter panel-splitter--right"
           role="separator"
@@ -394,7 +421,7 @@ export function App() {
             onExitSimulator={endSimulation}
           />
         </div>
-      </>}
+      </aside>}
     </div>
     <footer className="chassis-footer"><span>HOWLING WHISPERS RESEARCH DIVISION</span><span>ORBIS LINK / UNIT S-001</span></footer>
   </main>;

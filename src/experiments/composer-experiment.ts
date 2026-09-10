@@ -216,11 +216,14 @@ function installControlToggles() {
   if (!group || group.querySelector('[data-composer-experiment]')) return;
   const crtToggle = [...group.querySelectorAll<HTMLLabelElement>('label.toggle')]
     .find((label) => label.textContent?.includes('CRT MOTION'));
-  if (!crtToggle) return;
   const smart = makeToggle('SMART PAIRS', SMART_PAIRS_KEY);
   const clicky = makeToggle('CLICKY FORMAT KEYS', CLICKY_FORMAT_KEY);
-  crtToggle.insertAdjacentElement('afterend', clicky);
-  crtToggle.insertAdjacentElement('afterend', smart);
+  if (crtToggle) {
+    crtToggle.insertAdjacentElement('afterend', clicky);
+    crtToggle.insertAdjacentElement('afterend', smart);
+  } else {
+    group.append(smart, clicky);
+  }
 }
 
 function latestContextTokens(): number | null {

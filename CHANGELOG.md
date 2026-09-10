@@ -2,6 +2,19 @@
 
 Speculus uses a human-readable release version plus a 7-character Git build id shown in the terminal, for example `v0.2.0+5890c7b`.
 
+## [0.4.0] - 2026-09-10
+
+### Added
+- Display menu with Blue Moon, Green Phosphor, Amber, Violet, and Monochrome palettes.
+- Independent Night, Day, and System brightness selection for every palette.
+- Persistent per-browser phosphor color preference.
+
+### Changed
+- Debug now opens as a resizable overlay inspector and no longer compresses the transcript or composer.
+- Replaced the horizontally scrolling diagnostic navigation with a compact 3-by-3 view grid.
+- Shortened the visible Relationship diagnostic label to Relations while preserving its underlying data view.
+- Moved display theme and CRT motion controls out of the package rail into the dedicated Display menu.
+
 ## [0.3.0] - 2026-09-10
 
 ### Added
