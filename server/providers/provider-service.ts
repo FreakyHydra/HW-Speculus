@@ -25,24 +25,31 @@ export async function generateThroughOrbis(session: GenerationSession, request: 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180_000);
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session.generationGrant}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        launchId: session.launchId,
-        source: session.source,
-        prompt: request.prompt,
-        model: request.model,
-        temperature: request.temperature,
-        maxTokens: request.maxTokens,
-        reroll: request.reroll === true,
-      }),
-      signal: controller.signal,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.generationGrant}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          launchId: session.launchId,
+          source: session.source,
+          prompt: request.prompt,
+          model: request.model,
+          temperature: request.temperature,
+          maxTokens: request.maxTokens,
+          reroll: request.reroll === true,
+        }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error('MODEL TIMEOUT: the Orbis generation bridge exceeded 180 seconds.');
+      const detail = error instanceof Error ? error.message : 'network request failed';
+      throw new Error(`ORBIS NETWORK FAILURE: ${detail}`);
+    }
     if (!response.ok) throw new Error(`Orbis generation bridge returned HTTP ${response.status}.`);
     const value: unknown = await response.json();
     const text = extractText(value);
-    if (!text.trim()) throw new Error('Orbis generation bridge returned no roleplay text.');
+    if (!text.trim()) throw new Error('EMPTY GENERATION: Orbis generation bridge returned no roleplay text.');
     const parsed = new URL(url);
     const metadata: SafeProviderMetadata = {
       provider: 'orbis',
