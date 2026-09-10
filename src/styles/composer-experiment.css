@@ -26,12 +26,41 @@
   outline: none;
 }
 
-.composer-key-hint {
+.composer-helper-button:disabled {
+  cursor: wait;
+  opacity: .58;
+}
+
+.composer-context-meter {
   margin-left: auto;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 58%, transparent);
   color: var(--muted);
   font-size: .54rem;
   letter-spacing: .07em;
   white-space: nowrap;
+}
+
+.composer-context-meter[data-level="warn"] {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+}
+
+.composer-context-meter[data-level="high"] {
+  color: var(--red, var(--amber));
+  border-color: currentColor;
+}
+
+.composer-key-hint {
+  color: var(--muted);
+  font-size: .54rem;
+  letter-spacing: .07em;
+  white-space: nowrap;
+}
+
+.speculus-build-version {
+  opacity: .78;
+  letter-spacing: .06em;
 }
 
 .composer-experiment-toggle {
@@ -68,8 +97,15 @@
   }
 }
 
+@media (max-width: 900px) {
+  .composer-context-meter {
+    margin-left: 0;
+  }
+}
+
 @media (max-width: 700px) {
-  .composer-key-hint {
+  .composer-key-hint,
+  .composer-context-meter {
     flex-basis: 100%;
     margin-left: 0;
   }
