@@ -50,19 +50,20 @@ function makeSelect<T extends string>(
 }
 
 function installUi(): boolean {
-  const panel = document.querySelector<HTMLElement>('.display-menu__panel');
-  if (!panel) return false;
-  if (panel.querySelector('[data-roleplay-text-controls]')) return true;
+  const group = document.querySelector<HTMLElement>('.control-group');
+  if (!group) return false;
+  if (group.querySelector('[data-roleplay-text-controls]')) return true;
 
   let fontSize = readFontSize();
   let lineSpacing = readLineSpacing();
 
-  const heading = document.createElement('span');
-  heading.className = 'display-menu__label';
+  const heading = document.createElement('div');
+  heading.className = 'micro-label';
   heading.textContent = 'ROLEPLAY TEXT';
   heading.dataset.roleplayTextControls = 'true';
 
   const fontLabel = document.createElement('label');
+  fontLabel.className = 'theme-select';
   fontLabel.append('TEXT SIZE');
   fontLabel.append(makeSelect<RoleplayFontSize>(fontSize, [
     ['small', 'SMALL'],
@@ -76,6 +77,7 @@ function installUi(): boolean {
   }));
 
   const spacingLabel = document.createElement('label');
+  spacingLabel.className = 'theme-select';
   spacingLabel.append('LINE SPACING');
   spacingLabel.append(makeSelect<RoleplayLineSpacing>(lineSpacing, [
     ['compact', 'COMPACT'],
@@ -87,7 +89,11 @@ function installUi(): boolean {
     applyPreferences(fontSize, lineSpacing);
   }));
 
-  panel.append(heading, fontLabel, spacingLabel);
+  const calibration = group.querySelector<HTMLElement>('[data-response-calibration]');
+  if (calibration) calibration.insertAdjacentElement('afterend', heading);
+  else group.append(heading);
+  heading.insertAdjacentElement('afterend', fontLabel);
+  fontLabel.insertAdjacentElement('afterend', spacingLabel);
   return true;
 }
 
