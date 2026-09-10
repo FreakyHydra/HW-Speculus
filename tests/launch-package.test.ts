@@ -68,7 +68,7 @@ describe('Orbis launch package', () => {
     }))).toThrow(/does not match/i);
   });
 
-  it('boots a packaged world through a narrator subject without manual imports', () => {
+  it('boots a packaged world through a neutral narrator without turning the world into a character', () => {
     const parsed = parseOrbisLaunchPackage(launchPackage({
       primaryAsset: { id: 'world:bitterroot', revision: '12', type: 'world', name: 'Bitterroot', summary: 'A dangerous wilderness.', data: { humans: false } },
       character: null,
@@ -79,9 +79,14 @@ describe('Orbis launch package', () => {
       },
     }));
     const safe = clientLaunchPackage(parsed);
-    expect(resolveSimulationSubject(safe).systemPrompt).toContain('simulation narrator');
+    const subject = resolveSimulationSubject(safe);
+    expect(subject.name).toBe('SIMULATION NARRATOR');
+    expect(subject.id).not.toBe('world:bitterroot');
+    expect(subject.systemPrompt).toMatch(/world, not a character/i);
+    expect(subject.systemPrompt).toMatch(/do not give it speech, thoughts, feelings, motives, or relationships/i);
+
     const session = createSession(Date.now(), safe);
-    expect(session.character?.name).toBe('Bitterroot');
+    expect(session.character?.name).toBe('SIMULATION NARRATOR');
     expect(session.persona?.name).toBe('Skyler');
     expect(session.settings.provider.kind).toBe('orbis');
   });
