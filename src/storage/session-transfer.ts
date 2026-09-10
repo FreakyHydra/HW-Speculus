@@ -17,6 +17,10 @@ const rawSessionSchema = z.object({
   state: z.object({
     sessionId: z.string(),
     scene: z.string(),
+    influence: z.object({
+      tags: z.array(z.string()),
+      freeform: z.string(),
+    }).optional(),
     transcript: z.array(z.unknown()),
     relationships: z.record(z.string(), z.unknown()),
     diagnostics: z.array(z.unknown()),
@@ -48,6 +52,7 @@ export function exportRawSession(session: SimulatorSession, now = Date.now()): s
     state: {
       sessionId: session.id,
       scene: session.scene,
+      influence: structuredClone(session.influence ?? { tags: [], freeform: '' }),
       transcript: structuredClone(session.transcript),
       relationships: structuredClone(session.relationships),
       diagnostics: structuredClone(session.diagnostics),
@@ -80,6 +85,7 @@ export function resumeRawSession(current: SimulatorSession, raw: string, now = D
     ...current,
     id: imported.state.sessionId,
     scene: imported.state.scene,
+    influence: imported.state.influence ?? { tags: [], freeform: '' },
     transcript: imported.state.transcript as SimulatorSession['transcript'],
     relationships: imported.state.relationships as SimulatorSession['relationships'],
     diagnostics: imported.state.diagnostics as SimulatorSession['diagnostics'],
