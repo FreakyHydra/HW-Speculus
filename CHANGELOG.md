@@ -2,6 +2,12 @@
 
 Speculus uses a human-readable release version plus a 7-character Git build id shown in the terminal, for example `v0.2.0+5890c7b`.
 
+## [0.4.1] - 2026-09-10
+
+### Fixed
+- The resizable Debug inspector is docked beside the terminal again. Dragging the divider now resizes both panels together instead of allowing the inspector to cover terminal content.
+- The same docked behavior works whether the Package panel is visible or collapsed.
+
 ## [0.4.0] - 2026-09-10
 
 ### Added

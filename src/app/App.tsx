@@ -149,13 +149,17 @@ export function App() {
     const available = workstation.getBoundingClientRect().width;
     setPanelLayout((current) => {
       if (side === 'left') {
-        const max = Math.max(MIN_LEFT_PANEL, Math.min(MAX_LEFT_PANEL, available - MIN_TERMINAL_PANEL - SPLITTER_SPACE / 2));
+        const reservedRight = diagnosticsVisible ? current.right : 0;
+        const reservedSplitters = (diagnosticsVisible ? SPLITTER_SPACE : SPLITTER_SPACE / 2);
+        const max = Math.max(MIN_LEFT_PANEL, Math.min(MAX_LEFT_PANEL, available - reservedRight - MIN_TERMINAL_PANEL - reservedSplitters));
         return { ...current, left: clamp(requestedWidth, MIN_LEFT_PANEL, max) };
       }
-      const max = Math.max(MIN_RIGHT_PANEL, Math.min(MAX_RIGHT_PANEL, available - 48));
+      const reservedLeft = packageVisible ? current.left : 0;
+      const reservedSplitters = packageVisible ? SPLITTER_SPACE : SPLITTER_SPACE / 2;
+      const max = Math.max(MIN_RIGHT_PANEL, Math.min(MAX_RIGHT_PANEL, available - reservedLeft - MIN_TERMINAL_PANEL - reservedSplitters));
       return { ...current, right: clamp(requestedWidth, MIN_RIGHT_PANEL, max) };
     });
-  }, []);
+  }, [diagnosticsVisible, packageVisible]);
 
   useEffect(() => {
     if (!dragging) return;
