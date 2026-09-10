@@ -19,14 +19,16 @@ export function getResponseCalibration(): ResponseCalibration {
 
 export function responseTokenLimit(defaultMax: number): number {
   const mode = getResponseCalibration();
-  if (mode === 'concise') return Math.min(defaultMax, 320);
+  // Concise is a pacing preference, not a truncation mechanism. Give the model the
+  // normal provider budget so it can finish the current sentence/beat naturally.
+  if (mode === 'concise') return defaultMax;
   if (mode === 'normal') return Math.min(Math.max(defaultMax, 550), 900);
   if (mode === 'long') return Math.max(defaultMax, 1400);
   return defaultMax;
 }
 
 function responseInstruction(mode: ResponseCalibration): string {
-  if (mode === 'concise') return 'Response calibration: CONCISE. Prefer roughly 1-2 short paragraphs unless the immediate action truly requires more.';
+  if (mode === 'concise') return 'Response calibration: CONCISE. Keep the reply very short: usually one immediate action/reaction beat and no more than 1-2 short paragraphs. Do not add recap, extra scene development, boilerplate questions, weather/time summaries, or multiple new beats. Always finish the current sentence and natural response beat; never cut off mid-sentence just to stay short.';
   if (mode === 'normal') return 'Response calibration: NORMAL. Prefer roughly 2-4 moderate paragraphs with no unnecessary repetition.';
   if (mode === 'long') return 'Response calibration: LONG. Allow a detailed response when useful, but remain focused on the current scene.';
   return 'Response calibration: ADAPTIVE. Match response length to the immediate scene and player input; do not become verbose without a reason.';
