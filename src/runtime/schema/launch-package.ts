@@ -54,9 +54,6 @@ export const orbisLaunchPackageSchema = z.object({
   if (value.character && value.primaryAsset.type === 'character' && value.character.id !== value.primaryAsset.id) {
     context.addIssue({ code: 'custom', message: 'Primary character identity does not match the packaged character.' });
   }
-  if (value.character && value.primaryAsset.type !== 'character') {
-    context.addIssue({ code: 'custom', message: `A ${value.primaryAsset.type} primary asset cannot be packaged as the active character.` });
-  }
   if (value.catalog) {
     const expected = value.catalog.generation === 1
       ? `SPC-${value.catalog.prefix}-${value.catalog.plate}`
