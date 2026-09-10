@@ -3,7 +3,7 @@ import { stripModelControlTokens } from '../runtime/generation/format';
 import type { DiagnosticsSnapshot } from '../runtime/schema/types';
 import type { SimulatorSession } from '../simulator/session';
 
-const tabs = ['CONTEXT', 'PERCEPTION', 'CAST', 'RELATIONSHIP', 'PROVIDER', 'TURNS', 'RAW'] as const;
+const tabs = ['CONTEXT', 'KNOWLEDGE', 'PERCEPTION', 'CAST', 'RELATIONSHIP', 'PROVIDER', 'REROLL', 'TURNS', 'RAW'] as const;
 type Tab = (typeof tabs)[number];
 
 type TurnGroup = {
@@ -19,13 +19,34 @@ type DiagnosticsPanelProps = {
   onExitSimulator: () => void;
 };
 
+function knowledgeView(snapshot: DiagnosticsSnapshot) {
+  return {
+    rule: 'Treat only observed, spoken, packaged, or explicitly provided facts as available knowledge. Unknown remains unknown.',
+    sceneFacts: snapshot.perception.sceneFacts,
+    visibleSubjects: snapshot.perception.visibleSubjects,
+    mentionedNames: snapshot.perception.mentionedNames,
+    filteredOrUnavailable: snapshot.perception.filtered,
+  };
+}
+
+function rerollView(snapshot: DiagnosticsSnapshot) {
+  if (!snapshot.previousReply) return { status: 'This turn has not been rerolled.' };
+  return {
+    previousReply: cleanTranscriptText(snapshot.previousReply),
+    replacementReply: cleanTranscriptText(snapshot.finalReply),
+    note: 'The replacement is canonical for the current simulator state; the previous reply is retained here only for comparison.',
+  };
+}
+
 function contentFor(tab: Exclude<Tab, 'TURNS'>, snapshot: DiagnosticsSnapshot | undefined, session: SimulatorSession): unknown {
   if (tab === 'RAW') return session;
   if (!snapshot) return { status: 'No generated turn has produced diagnostics yet.' };
   if (tab === 'CONTEXT') return { prompt: snapshot.compiledContext.prompt, manifest: snapshot.compiledContext.manifest };
+  if (tab === 'KNOWLEDGE') return knowledgeView(snapshot);
   if (tab === 'PERCEPTION') return snapshot.perception;
   if (tab === 'CAST') return snapshot.activeCast;
   if (tab === 'RELATIONSHIP') return { before: snapshot.relationshipBefore, event: snapshot.relationshipEvent, after: snapshot.relationshipAfter };
+  if (tab === 'REROLL') return rerollView(snapshot);
   return snapshot.provider;
 }
 
@@ -61,6 +82,8 @@ export function DiagnosticsPanel({ session, busy, onExportRaw, onImportRaw, onEx
   const selectedTranscriptTurn = snapshot?.turnId.replace(/:(player|character)$/, '') ?? '';
   const jsonOutput = tab === 'TURNS' ? '' : JSON.stringify(contentFor(tab, snapshot, session), null, 2);
   const copyOutput = tab === 'TURNS' ? printableTurns(turnGroups) : jsonOutput;
+  const contextTokens = snapshot?.compiledContext.manifest.estimatedInputTokens;
+  const contextSections = snapshot?.compiledContext.manifest.includedSections.length;
 
   return <section className="panel diagnostics-panel">
     <header className="panel-header"><span>DIAGNOSTICS</span><span className="lamp lamp-amber" /></header>
@@ -68,6 +91,11 @@ export function DiagnosticsPanel({ session, busy, onExportRaw, onImportRaw, onEx
       {session.diagnostics.length === 0 && <option value="">NO TURN DATA</option>}
       {session.diagnostics.map((entry) => <option key={entry.turnId} value={entry.turnId}>{entry.turnId}</option>)}
     </select>
+    <div style={{ display: 'flex', gap: '10px', padding: '4px 8px 0', fontSize: '.58rem', opacity: .8 }}>
+      <span>CTX {typeof contextTokens === 'number' ? `~${contextTokens.toLocaleString()} TOK` : '—'}</span>
+      <span>SECTIONS {typeof contextSections === 'number' ? contextSections : '—'}</span>
+      <span>MESSAGES {snapshot?.compiledContext.manifest.includedMessages ?? '—'}</span>
+    </div>
     <nav className="diagnostic-tabs" aria-label="Diagnostic views">
       {tabs.map((name) => <button className={tab === name ? 'active' : ''} key={name} onClick={() => setTab(name)}>{name}</button>)}
     </nav>
