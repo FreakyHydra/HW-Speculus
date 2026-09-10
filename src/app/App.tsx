@@ -70,6 +70,7 @@ export function App() {
   const [boot, setBoot] = useState<BootState>({ status: 'receiving' });
   const [booting, setBooting] = useState(true);
   const [input, setInput] = useState('');
+  const [tagDraft, setTagDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [theme, setTheme] = useState<ThemeMode>(() => {
@@ -238,6 +239,21 @@ export function App() {
   const source = session.launchPackage!.primaryAsset;
   const catalog = resolveCatalogIdentity(session.launchPackage!);
   const updateScene = (scene: string) => setSession((current) => current ? { ...current, scene, updatedAt: Date.now() } : current);
+  const updateInfluence = (patch: Partial<NonNullable<SimulatorSession['influence']>>) => setSession((current) => current ? {
+    ...current,
+    influence: { tags: current.influence?.tags ?? [], freeform: current.influence?.freeform ?? '', ...patch },
+    updatedAt: Date.now(),
+  } : current);
+  const addInfluenceTag = () => {
+    const tag = tagDraft.trim();
+    if (!tag) return;
+    const tags = session.influence?.tags ?? [];
+    if (!tags.some((item) => item.toLocaleLowerCase('en-US') === tag.toLocaleLowerCase('en-US'))) {
+      updateInfluence({ tags: [...tags, tag] });
+    }
+    setTagDraft('');
+  };
+  const removeInfluenceTag = (tag: string) => updateInfluence({ tags: (session.influence?.tags ?? []).filter((item) => item !== tag) });
   const exportSession = () => {
     try {
       const blob = new Blob([exportRawSession(session)], { type: 'application/json' });
@@ -327,6 +343,33 @@ export function App() {
         <label className="field-label">ACTIVE SCENE
           <textarea rows={5} value={session.scene} onChange={(event) => updateScene(event.target.value)} />
         </label>
+        <section aria-label="AI influence controls" style={{ margin: '0 12px 12px', padding: '10px', border: '1px solid var(--line, currentColor)' }}>
+          <div className="micro-label" style={{ marginBottom: 8 }}>AI INFLUENCE</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {(session.influence?.tags ?? []).map((tag) => <button key={tag} type="button" className="terminal-button" title="Remove influence tag" onClick={() => removeInfluenceTag(tag)} style={{ padding: '3px 6px' }}>{tag} ×</button>)}
+            {(session.influence?.tags ?? []).length === 0 && <span style={{ opacity: 0.65, fontSize: '0.75rem' }}>NO TAGS ACTIVE</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <input
+              aria-label="New influence tag"
+              value={tagDraft}
+              onChange={(event) => setTagDraft(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addInfluenceTag(); } }}
+              placeholder="ADD TAG"
+              style={{ minWidth: 0, flex: 1 }}
+            />
+            <button type="button" className="terminal-button" onClick={addInfluenceTag}>ADD</button>
+          </div>
+          <label className="field-label" style={{ margin: 0 }}>FREEFORM INFLUENCE
+            <textarea
+              rows={5}
+              value={session.influence?.freeform ?? ''}
+              onChange={(event) => updateInfluence({ freeform: event.target.value })}
+              placeholder="SOFT DIRECTION FOR TONE, BEHAVIOR, PACING, OR EMPHASIS"
+            />
+          </label>
+          {((session.influence?.tags?.length ?? 0) > 0 || Boolean(session.influence?.freeform?.trim())) && <button type="button" className="terminal-button" onClick={() => updateInfluence({ tags: [], freeform: '' })} style={{ marginTop: 8 }}>CLEAR INFLUENCE</button>}
+        </section>
         <details className="panel-disclosure">
           <summary>PACKAGE MANIFEST <span>{source.type.toLocaleUpperCase('en-US')} / {session.launchPackage!.relatedAssets.length} LINKED</span></summary>
           <dl>
