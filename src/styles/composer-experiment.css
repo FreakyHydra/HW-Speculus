@@ -58,6 +58,15 @@
   white-space: nowrap;
 }
 
+.response-calibration-hint {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font: .54rem/1.25 "Courier New", Courier, monospace;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+
 .speculus-build-version {
   opacity: .78;
   letter-spacing: .06em;
