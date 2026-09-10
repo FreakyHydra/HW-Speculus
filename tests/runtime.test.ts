@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compileContext } from '../src/runtime/generation/compile-context';
-import { isRoleplayFormattingStable, normalizeRoleplayReply, stripModelControlTokens } from '../src/runtime/generation/format';
+import { containsInternalContextLeak, isRoleplayFormattingStable, normalizeRoleplayReply, redactPrivatePlayerKnowledge, stripModelControlTokens } from '../src/runtime/generation/format';
 import { resolveActiveCast } from '../src/runtime/generation/perception';
 import { commitRelationshipEvent, getRelationship } from '../src/runtime/relationships/core';
 import { importCharacterCard, importPersona } from '../src/runtime/schema/importers';
@@ -17,7 +17,7 @@ describe('runtime foundations', () => {
     expect(compiled.manifest.includedSections).toContain('persona');
   });
 
-  it('anchors Orbis context to the immutable SPC registry identity', () => {
+  it('keeps internal Orbis registry and raw asset metadata out of model context', () => {
     const relationship = getRelationship({}, character.id, persona.id);
     const launchPackage: ClientLaunchPackage = {
       version: 1,
@@ -29,21 +29,29 @@ describe('runtime foundations', () => {
         registryNumber: 27, classRegistryNumber: 2, classification: 'CHARACTER',
         createdAt: '2026-09-08T00:00:00.000Z', status: 'active',
       },
-      primaryAsset: { id: character.id, revision: 'rev-1', type: 'character', name: character.name, summary: character.description, data: {} },
+      primaryAsset: {
+        id: character.id,
+        revision: 'rev-secret',
+        type: 'character',
+        name: character.name,
+        summary: character.description,
+        data: { internalSecret: 'do-not-send-to-model' },
+      },
       relatedAssets: [],
       character,
       persona,
       scene: 'Inside the test vault.',
-      contextBlocks: [],
+      contextBlocks: [{ id: 'canon-1', title: 'Canon', content: 'The vault door is visibly shut.' }],
       relationshipState: {},
       model: 'xialong-v1',
     };
     const compiled = compileContext({ character, persona, scene: launchPackage.scene, transcript: [], relationship, launchPackage });
-    expect(compiled.manifest.includedSections).toContain('registry');
-    expect(compiled.prompt).toContain('Canonical Speculus identity: SPC-C-KD41827');
-    expect(compiled.prompt).toContain('Internal global registry sequence: 27');
-    expect(compiled.prompt).toContain('Internal character sequence: 2');
-    expect(compiled.prompt).toContain('not in-world knowledge');
+    expect(compiled.manifest.includedSections).toContain('orbis-asset');
+    expect(compiled.manifest.includedSections).not.toContain('registry');
+    expect(compiled.prompt).toContain('The vault door is visibly shut.');
+    expect(compiled.prompt).not.toContain('SPC-C-KD41827');
+    expect(compiled.prompt).not.toContain('rev-secret');
+    expect(compiled.prompt).not.toContain('do-not-send-to-model');
   });
 
   it('keeps character and persona schemas distinct', () => {
@@ -60,11 +68,47 @@ describe('runtime foundations', () => {
     expect(result.mentionedOnly).toContain('Rowan');
   });
 
+  it('removes private player narration before it reaches model history', () => {
+    const relationship = getRelationship({}, character.id, persona.id);
+    const playerText = '*I stop at the fence.* [Pip does not know my real name is Rowan.] "Can I pass?" I secretly expect her to refuse.';
+    expect(redactPrivatePlayerKnowledge(playerText)).toBe('*I stop at the fence.* "Can I pass?"');
+
+    const compiled = compileContext({
+      character,
+      persona,
+      scene: 'At the boundary fence.',
+      relationship,
+      transcript: [{
+        id: 'turn:1:player',
+        turnId: 'turn:1',
+        sender: 'player',
+        speaker: persona.name,
+        text: playerText,
+        timestamp: 1,
+      }],
+    });
+    const history = compiled.prompt.match(/<history>\n([\s\S]*?)\n<\/history>/)?.[1] ?? '';
+    expect(history).toContain('*I stop at the fence.* "Can I pass?"');
+    expect(history).not.toContain('real name is Rowan');
+    expect(history).not.toContain('secretly expect');
+  });
+
+  it('removes cognition embedded inside outward action spans', () => {
+    expect(redactPrivatePlayerKnowledge('*I glance toward the road, wondering whether Pip followed me.* "Hello?"'))
+      .toBe('*I glance toward the road* "Hello?"');
+  });
+
   it('preserves stable roleplay formatting', () => {
     const source = '*Peony taps the gauge.* "Steady now." [I hope it holds.]';
     expect(normalizeRoleplayReply(source)).toBe(source);
     expect(isRoleplayFormattingStable(source)).toBe(true);
     expect(normalizeRoleplayReply('Hello there.')).toBe('"Hello there."');
+  });
+
+  it('blocks provider replies that echo internal Speculus context', () => {
+    const leaked = '<character>\nName: Peony\nCard system prompt: secret\n</character>';
+    expect(containsInternalContextLeak(leaked)).toBe(true);
+    expect(() => normalizeRoleplayReply(leaked)).toThrow(/internal Speculus context.*blocked/i);
   });
 
   it('strips provider control tags before storage and history compilation', () => {
