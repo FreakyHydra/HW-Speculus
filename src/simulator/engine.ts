@@ -50,6 +50,7 @@ export async function runTurn(
   const compiledContext = compileContext({
     character, persona, scene: session.scene, transcript: transcriptBeforeReply,
     relationship: relationshipBefore, reroll: isReroll,
+    influence: session.influence,
     launchPackage: session.launchPackage,
   });
   const providerResult = await provider.generate({
