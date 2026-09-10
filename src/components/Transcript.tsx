@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { stripModelControlTokens } from '../runtime/generation/format';
 import type { TranscriptMessage } from '../runtime/schema/types';
+import { loadSession, saveSession } from '../storage/session-storage';
 
 const AUTO_SCROLL_KEY = 'speculus-auto-scroll';
 
@@ -18,6 +19,16 @@ function RenderedMessage({ text }: { text: string }) {
   })}</>;
 }
 
+function persistEditedMessage(message: TranscriptMessage, text: string) {
+  message.text = text;
+  const stored = loadSession();
+  if (!stored) return;
+  stored.transcript = stored.transcript.map((entry) => entry.id === message.id ? { ...entry, text } : entry);
+  stored.diagnostics = stored.diagnostics.map((entry) => entry.turnId === message.id ? { ...entry, finalReply: text } : entry);
+  stored.updatedAt = Date.now();
+  saveSession(stored);
+}
+
 export function Transcript(props: {
   messages: TranscriptMessage[];
   busy: boolean;
@@ -25,6 +36,8 @@ export function Transcript(props: {
   onDelete: (message: TranscriptMessage) => void;
 }) {
   const end = useRef<HTMLDivElement>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
 
   useEffect(() => {
     if (!autoScrollEnabled()) return;
@@ -33,13 +46,42 @@ export function Transcript(props: {
     node.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [props.messages.length]);
 
+  const startEdit = (message: TranscriptMessage) => {
+    setEditingId(message.id);
+    setEditDraft(message.text);
+  };
+
+  const saveEdit = (message: TranscriptMessage) => {
+    const text = editDraft.trim();
+    if (!text) return;
+    persistEditedMessage(message, text);
+    setEditingId(null);
+    setEditDraft('');
+  };
+
   return <div className="transcript live-transcript" aria-live="polite">
     {props.messages.length === 0 && <div className="empty-state">NO TRANSCRIPT. LOAD SUBJECT AND PERSONA, THEN BEGIN TEST.</div>}
     {props.messages.map((message) => <article className={`message ${message.sender}`} key={message.id}>
       <div className="message-meta"><span>{message.speaker}</span></div>
-      <div className="message-text"><RenderedMessage text={message.text} /></div>
-      {message.sender === 'character' && !message.id.startsWith('opening:') && <div className="message-actions">
+      {editingId === message.id
+        ? <div className="message-editor">
+          <textarea
+            aria-label={`Edit ${message.speaker} response`}
+            value={editDraft}
+            onChange={(event) => setEditDraft(event.target.value)}
+            rows={Math.min(14, Math.max(4, editDraft.split('\n').length + 2))}
+            style={{ width: '100%', resize: 'vertical' }}
+            autoFocus
+          />
+          <div className="message-actions">
+            <button type="button" disabled={props.busy || !editDraft.trim()} onClick={() => saveEdit(message)}>SAVE</button>
+            <button type="button" disabled={props.busy} onClick={() => { setEditingId(null); setEditDraft(''); }}>CANCEL</button>
+          </div>
+        </div>
+        : <div className="message-text"><RenderedMessage text={message.text} /></div>}
+      {message.sender === 'character' && !message.id.startsWith('opening:') && editingId !== message.id && <div className="message-actions">
         <button disabled={props.busy} onClick={() => props.onReroll(message)}>REROLL</button>
+        <button disabled={props.busy} onClick={() => startEdit(message)}>EDIT</button>
         <button disabled={props.busy} onClick={() => props.onDelete(message)}>DELETE TURN</button>
       </div>}
     </article>)}
