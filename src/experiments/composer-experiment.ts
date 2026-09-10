@@ -60,6 +60,16 @@ function smartPairKeydown(event: KeyboardEvent, textarea: HTMLTextAreaElement) {
     }
   }
 
+  // Space is the natural "finish this formatted span" key. When the caret is
+  // immediately before an auto-inserted closer, step outside it and put the
+  // requested space after the pair instead of forcing the user to press an arrow key.
+  if (event.key === ' ' && start === end && (nextChar === '*' || nextChar === '"' || nextChar === ']')) {
+    event.preventDefault();
+    const next = textarea.value.slice(0, start + 1) + ' ' + textarea.value.slice(start + 1);
+    setReactTextareaValue(textarea, next, start + 2);
+    return true;
+  }
+
   if (start === end && ((event.key === '*' && nextChar === '*') || (event.key === '"' && nextChar === '"') || (event.key === ']' && nextChar === ']'))) {
     event.preventDefault();
     textarea.setSelectionRange(start + 1, start + 1);
