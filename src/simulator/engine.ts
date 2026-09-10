@@ -26,6 +26,7 @@ export async function runTurn(
     ? session.transcript.findIndex((message) => message.id === options.rerollCharacterId && message.sender === 'character')
     : -1;
   const isReroll = rerollIndex >= 0;
+  const previousReply = isReroll ? session.transcript[rerollIndex]?.text : undefined;
   const turnNumber = isReroll ? Number(session.transcript[rerollIndex].turnId.split(':').at(-1)) || session.nextTurnNumber : session.nextTurnNumber;
   const turnId = isReroll ? session.transcript[rerollIndex].turnId : `turn:${turnNumber}`;
   const characterMessageId = isReroll ? session.transcript[rerollIndex].id : `${turnId}:character`;
@@ -89,6 +90,7 @@ export async function runTurn(
     compiledContext,
     provider: providerResult.metadata,
     finalReply: reply,
+    previousReply,
   });
   return {
     ...session,
