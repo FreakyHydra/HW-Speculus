@@ -29,6 +29,25 @@ function persistEditedMessage(message: TranscriptMessage, text: string) {
   saveSession(stored);
 }
 
+async function copyRawMessage(message: TranscriptMessage): Promise<boolean> {
+  const text = stripModelControlTokens(message.text);
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.append(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    textarea.remove();
+    return copied;
+  }
+}
+
 export function Transcript(props: {
   messages: TranscriptMessage[];
   busy: boolean;
@@ -38,6 +57,7 @@ export function Transcript(props: {
   const end = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!autoScrollEnabled()) return;
@@ -57,6 +77,13 @@ export function Transcript(props: {
     persistEditedMessage(message, text);
     setEditingId(null);
     setEditDraft('');
+  };
+
+  const copyMessage = async (message: TranscriptMessage) => {
+    if (await copyRawMessage(message)) {
+      setCopiedId(message.id);
+      window.setTimeout(() => setCopiedId((current) => current === message.id ? null : current), 1200);
+    }
   };
 
   return <div className="transcript live-transcript" aria-live="polite">
@@ -79,10 +106,11 @@ export function Transcript(props: {
           </div>
         </div>
         : <div className="message-text"><RenderedMessage text={message.text} /></div>}
-      {message.sender === 'character' && !message.id.startsWith('opening:') && editingId !== message.id && <div className="message-actions">
-        <button disabled={props.busy} onClick={() => props.onReroll(message)}>REROLL</button>
-        <button disabled={props.busy} onClick={() => startEdit(message)}>EDIT</button>
-        <button disabled={props.busy} onClick={() => props.onDelete(message)}>DELETE TURN</button>
+      {!message.id.startsWith('opening:') && editingId !== message.id && <div className="message-actions">
+        {message.sender === 'character' && <button disabled={props.busy} onClick={() => props.onReroll(message)}>REROLL</button>}
+        <button type="button" disabled={props.busy} onClick={() => void copyMessage(message)}>{copiedId === message.id ? 'COPIED' : 'COPY'}</button>
+        {message.sender === 'character' && <button disabled={props.busy} onClick={() => startEdit(message)}>EDIT</button>}
+        {message.sender === 'character' && <button disabled={props.busy} onClick={() => props.onDelete(message)}>DELETE TURN</button>}
       </div>}
     </article>)}
     {props.busy && <div className="working-line">MODEL LINK ACTIVE <span>▮</span></div>}
