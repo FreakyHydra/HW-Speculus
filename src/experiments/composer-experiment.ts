@@ -43,6 +43,67 @@ function wrapSelection(textarea: HTMLTextAreaElement, open: string, close: strin
   }
 }
 
+function enclosingPairAtCaret(textarea: HTMLTextAreaElement) {
+  const start = textarea.selectionStart ?? 0;
+  const end = textarea.selectionEnd ?? start;
+  if (start !== end || start <= 0 || start >= textarea.value.length) return null;
+  const before = textarea.value[start - 1];
+  const after = textarea.value[start];
+  if ((before === '*' && after === '*') || (before === '"' && after === '"') || (before === '[' && after === ']')) {
+    return { start: start - 1, end: start + 1, open: before, close: after };
+  }
+  return null;
+}
+
+function clickFormatAction(textarea: HTMLTextAreaElement, open: string, close: string) {
+  const start = textarea.selectionStart ?? 0;
+  const end = textarea.selectionEnd ?? start;
+
+  // A real selection is always explicit: wrap exactly what the user selected.
+  if (start !== end) {
+    wrapSelection(textarea, open, close);
+    return;
+  }
+
+  // If the caret is sitting inside an empty smart pair, treat the click as a
+  // format switch instead of nesting another empty pair inside it.
+  const emptyPair = enclosingPairAtCaret(textarea);
+  if (emptyPair) {
+    if (emptyPair.open === open && emptyPair.close === close) {
+      textarea.focus();
+      textarea.setSelectionRange(emptyPair.end, emptyPair.end);
+      return;
+    }
+    const next = `${textarea.value.slice(0, emptyPair.start)}${open}${close}${textarea.value.slice(emptyPair.end)}`;
+    setReactTextareaValue(textarea, next, emptyPair.start + 1);
+    return;
+  }
+
+  const nextChar = textarea.value[start] ?? '';
+  const previousChar = textarea.value[start - 1] ?? '';
+
+  // If the caret is already immediately before the requested closer, the same
+  // format button acts like a convenient "finish span" control.
+  if (nextChar === close) {
+    textarea.focus();
+    textarea.setSelectionRange(start + 1, start + 1);
+    return;
+  }
+
+  // If the caret is directly after a completed formatted span, start the next
+  // format beside it instead of making the user reposition the caret.
+  const completedCloser = previousChar === '*' || previousChar === '"' || previousChar === ']';
+  if (completedCloser) {
+    const needsSpace = start < textarea.value.length && !/^\s/.test(textarea.value.slice(start));
+    const spacer = needsSpace ? ' ' : '';
+    const next = `${textarea.value.slice(0, start)}${spacer}${open}${close}${textarea.value.slice(start)}`;
+    setReactTextareaValue(textarea, next, start + spacer.length + 1);
+    return;
+  }
+
+  wrapSelection(textarea, open, close);
+}
+
 function smartPairKeydown(event: KeyboardEvent, textarea: HTMLTextAreaElement) {
   if (!loadToggle(SMART_PAIRS_KEY) || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return false;
 
@@ -148,7 +209,7 @@ function installHelperRow() {
     button.textContent = action.label;
     button.title = action.title;
     button.addEventListener('mousedown', (event) => event.preventDefault());
-    button.addEventListener('click', () => wrapSelection(textarea, action.open, action.close));
+    button.addEventListener('click', () => clickFormatAction(textarea, action.open, action.close));
     row.append(button);
   }
 
