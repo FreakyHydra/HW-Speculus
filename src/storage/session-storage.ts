@@ -3,6 +3,7 @@ import { SESSION_VERSION, type SimulatorSession } from '../simulator/session';
 import { normalizeBrainConfig } from '../runtime/brain/policies/core';
 import { resolveTargetProtocol } from '../runtime/brain/protocols/target';
 import { getResponseCalibration } from '../runtime/generation/compile-context';
+import { normalizeProviderSettings } from '../runtime/generation/settings';
 
 export const SESSION_STORAGE_KEY = 'speculus.session.v1';
 
@@ -27,7 +28,14 @@ const storedSchema = z.object({
   brain: z.unknown().optional(),
   diagnostics: z.array(z.unknown()),
   settings: z.object({
-    provider: z.object({ kind: z.enum(['mock', 'orbis']), model: z.string(), temperature: z.number(), maxTokens: z.number() }),
+    provider: z.object({
+      kind: z.enum(['mock', 'orbis']), model: z.string(),
+      preset: z.enum(['novelai-default', 'custom']).optional(),
+      temperature: z.number(), maxTokens: z.number(),
+      outputLengthCharacters: z.number().optional(), topK: z.number().optional(), topP: z.number().optional(),
+      presencePenalty: z.number().optional(), frequencyPenalty: z.number().optional(),
+      stopSequences: z.array(z.string()).optional(), continueToEndOfSentence: z.boolean().optional(),
+    }),
     crtMotion: z.boolean(),
   }),
   nextTurnNumber: z.number().int().positive(),
@@ -48,6 +56,10 @@ export function deserializeSession(raw: string): SimulatorSession {
   const session = result.data as Omit<SimulatorSession, 'brain'> & { brain?: unknown };
   return {
     ...session,
+    settings: {
+      ...session.settings,
+      provider: normalizeProviderSettings(session.settings.provider as SimulatorSession['settings']['provider']),
+    },
     composerDraft: session.composerDraft ?? { text: '', updatedAt: session.updatedAt, submitted: false },
     brain: normalizeBrainConfig(session.brain, resolveTargetProtocol(session.launchPackage), getResponseCalibration()),
   } as SimulatorSession;

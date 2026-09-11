@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { SimulatorSession } from '../simulator/session';
 import { normalizeBrainConfig } from '../runtime/brain/policies/core';
 import { resolveTargetProtocol } from '../runtime/brain/protocols/target';
+import { normalizeProviderSettings } from '../runtime/generation/settings';
 
 export const RAW_SESSION_FORMAT = 'speculus-raw-session' as const;
 export const RAW_SESSION_VERSION = 1 as const;
@@ -33,7 +34,14 @@ const rawSessionSchema = z.object({
     brain: z.unknown().optional(),
     diagnostics: z.array(z.unknown()),
     settings: z.object({
-      provider: z.object({ kind: z.enum(['mock', 'orbis']), model: z.string(), temperature: z.number(), maxTokens: z.number() }),
+      provider: z.object({
+        kind: z.enum(['mock', 'orbis']), model: z.string(),
+        preset: z.enum(['novelai-default', 'custom']).optional(),
+        temperature: z.number(), maxTokens: z.number(),
+        outputLengthCharacters: z.number().optional(), topK: z.number().optional(), topP: z.number().optional(),
+        presencePenalty: z.number().optional(), frequencyPenalty: z.number().optional(),
+        stopSequences: z.array(z.string()).optional(), continueToEndOfSentence: z.boolean().optional(),
+      }),
       crtMotion: z.boolean(),
     }),
     nextTurnNumber: z.number().int().positive(),
@@ -108,7 +116,7 @@ export function resumeRawSession(current: SimulatorSession, raw: string, now = D
     settings: {
       ...imported.state.settings,
       provider: {
-        ...imported.state.settings.provider,
+        ...normalizeProviderSettings(imported.state.settings.provider as SimulatorSession['settings']['provider']),
         kind: current.settings.provider.kind,
         model: current.settings.provider.model,
       },

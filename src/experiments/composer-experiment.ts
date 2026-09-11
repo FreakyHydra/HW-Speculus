@@ -20,7 +20,11 @@ type StoredSession = {
   id?: string;
   launchPackage?: { launchId?: string } | null;
   diagnostics?: Array<{ compiledContext?: { manifest?: { estimatedInputTokens?: number } } }>;
-  settings?: { provider?: { model?: string; maxTokens?: number } };
+  settings?: { provider?: {
+    model?: string; maxTokens?: number; topK?: number; topP?: number;
+    presencePenalty?: number; frequencyPenalty?: number; stopSequences?: string[];
+    continueToEndOfSentence?: boolean;
+  } };
 };
 
 function loadToggle(key: string): boolean {
@@ -315,6 +319,12 @@ async function formatMyText(textarea: HTMLTextAreaElement, button: HTMLButtonEle
         model: provider.model,
         temperature: 0,
         maxTokens: Math.min(Math.max(provider.maxTokens ?? 512, 128), 2048),
+        topK: provider.topK ?? 250,
+        topP: provider.topP ?? 0.95,
+        presencePenalty: provider.presencePenalty ?? 0,
+        frequencyPenalty: provider.frequencyPenalty ?? 0,
+        stopSequences: provider.stopSequences ?? [],
+        continueToEndOfSentence: provider.continueToEndOfSentence ?? true,
         reroll: false,
       }),
     });

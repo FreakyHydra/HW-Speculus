@@ -34,8 +34,16 @@ export type ProviderKind = 'mock' | 'orbis';
 export type ProviderSettings = {
   kind: ProviderKind;
   model: string;
+  preset: 'novelai-default' | 'custom';
   temperature: number;
   maxTokens: number;
+  outputLengthCharacters: number;
+  topK: number;
+  topP: number;
+  presencePenalty: number;
+  frequencyPenalty: number;
+  stopSequences: string[];
+  continueToEndOfSentence: boolean;
 };
 
 export type SimulationAssetType = 'character' | 'world' | 'place' | 'item' | 'faction' | 'other';

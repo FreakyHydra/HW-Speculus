@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProviderAdapter, ProviderRequest } from '../src/runtime/providers/types';
+import { DEFAULT_PROVIDER_SETTINGS } from '../src/runtime/generation/settings';
 import { deleteCharacterTurn, runTurn } from '../src/simulator/engine';
 import { createSession, type SimulatorSession } from '../src/simulator/session';
 import { deserializeSession, serializeSession } from '../src/storage/session-storage';
@@ -15,7 +16,7 @@ class CapturingProvider implements ProviderAdapter {
 }
 
 function readySession(): SimulatorSession {
-  return { ...createSession(1000), character, persona, scene: 'A sealed workshop test.', settings: { provider: { kind: 'mock', model: 'test-model', temperature: .5, maxTokens: 300 }, crtMotion: false } };
+  return { ...createSession(1000), character, persona, scene: 'A sealed workshop test.', settings: { provider: { kind: 'mock', model: 'test-model', ...DEFAULT_PROVIDER_SETTINGS, temperature: .5, maxTokens: 300 }, crtMotion: false } };
 }
 
 describe('simulator transaction', () => {

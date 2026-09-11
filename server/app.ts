@@ -13,6 +13,12 @@ const generationRequestSchema = z.object({
   model: z.string().trim().min(1).max(200),
   temperature: z.number().min(0).max(2),
   maxTokens: z.number().int().min(32).max(4096),
+  topK: z.number().int().min(0).max(1000).default(250),
+  topP: z.number().min(0).max(1).default(0.95),
+  presencePenalty: z.number().min(-2).max(2).default(0),
+  frequencyPenalty: z.number().min(-2).max(2).default(0),
+  stopSequences: z.array(z.string().min(1).max(200)).max(16).default([]),
+  continueToEndOfSentence: z.boolean().default(true),
   reroll: z.boolean().optional(),
 });
 

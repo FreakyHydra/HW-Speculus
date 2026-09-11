@@ -61,8 +61,8 @@ export type BeatPlanV1 = {
 };
 
 export type DraftValidationIssue = {
-  code: 'player_control' | 'provider_incomplete';
-  ruleId: 'PLAYER-VOICE-001' | 'PLAYER-ACTION-001' | 'PLAYER-STATE-001' | 'PROVIDER-001';
+  code: 'player_control';
+  ruleId: 'PLAYER-VOICE-001' | 'PLAYER-ACTION-001' | 'PLAYER-STATE-001';
   message: string;
 };
 

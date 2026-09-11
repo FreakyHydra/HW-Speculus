@@ -16,6 +16,12 @@ type StoredSession = {
       model?: string;
       temperature?: number;
       maxTokens?: number;
+      topK?: number;
+      topP?: number;
+      presencePenalty?: number;
+      frequencyPenalty?: number;
+      stopSequences?: string[];
+      continueToEndOfSentence?: boolean;
     };
   };
 };
@@ -160,6 +166,12 @@ async function generatePlayerTurn(textarea: HTMLTextAreaElement, button: HTMLBut
         model: provider.model,
         temperature: provider.temperature ?? 0.8,
         maxTokens: Math.min(Math.max(provider.maxTokens ?? 300, 128), 420),
+        topK: provider.topK ?? 250,
+        topP: provider.topP ?? 0.95,
+        presencePenalty: provider.presencePenalty ?? 0,
+        frequencyPenalty: provider.frequencyPenalty ?? 0,
+        stopSequences: provider.stopSequences ?? [],
+        continueToEndOfSentence: provider.continueToEndOfSentence ?? true,
         reroll: false,
       }),
     });

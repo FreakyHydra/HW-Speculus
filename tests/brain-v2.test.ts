@@ -118,12 +118,12 @@ describe('Speculus Brain V2 contracts', () => {
     expect(canCommitPlaceId(authority, 'place:invented')).toBe(false);
   });
 
-  it('rejects provider truncation before committing transcript state', async () => {
+  it('returns provider output at the length ceiling instead of rejecting it', async () => {
     const session = createSession(100, launch());
     const provider = new FixedProvider('*Peony turns toward the', { completionStatus: 'max_tokens', finishReason: 'length' });
-    await expect(runTurn(session, 'Hello.', provider)).rejects.toThrow(/completion status is max_tokens/i);
-    expect(session.transcript).toEqual([]);
-    expect(session.relationships).toEqual({});
+    const next = await runTurn(session, 'Hello.', provider);
+    expect(next.transcript.at(-1)?.text).toContain('Peony turns toward');
+    expect(next.diagnostics.at(-1)?.provider.completionStatus).toBe('max_tokens');
   });
 
   it('rejects a voluntary action invented for the named player', async () => {
@@ -168,6 +168,11 @@ describe('Speculus Brain V2 contracts', () => {
     const next = await runTurn(session, '"This must be it."', provider);
     expect(provider.requests).toHaveLength(1);
     expect(provider.requests[0].maxTokens).toBe(200);
+    expect(provider.requests[0]).toMatchObject({
+      temperature: 0.85, topK: 250, topP: 0.95,
+      presencePenalty: 0, frequencyPenalty: 0,
+      stopSequences: [], continueToEndOfSentence: true,
+    });
     expect(next.transcript.at(-1)?.text).toContain('Traveler!');
   });
 

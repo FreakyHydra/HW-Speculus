@@ -239,6 +239,9 @@ button, select { text-transform: uppercase; }
 .subject-summary span { color: var(--muted); font-size: .54rem; letter-spacing: .1em; }
 .subject-summary strong { min-width: 0; color: var(--text-soft); font-size: .66rem; font-weight: normal; text-align: right; overflow-wrap: anywhere; }
 .control-group { margin: 0; padding: 8px; display: grid; gap: 6px; }
+.control-group label { position: relative; }
+.control-value { position: absolute; right: 0; color: var(--text-soft); font-size: .54rem; }
+.control-group input[type='range'] { padding: 0; accent-color: var(--accent); }
 .field-label { display: grid; gap: 4px; margin: 8px; }
 .panel-disclosure { margin: 0 8px 6px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface-input) 48%, transparent); }
 .panel-disclosure summary { display: flex; justify-content: space-between; align-items: center; gap: 7px; padding: 7px 8px; color: var(--blue-bright); font-size: .57rem; letter-spacing: .08em; cursor: pointer; list-style-position: inside; }

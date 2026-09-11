@@ -4,6 +4,7 @@ import { normalizeRoleplayReply } from '../src/runtime/generation/format';
 import { resolveSimulationSubject } from '../src/runtime/schema/launch-package';
 import type { ClientLaunchPackage } from '../src/runtime/schema/types';
 import { persona } from './fixtures';
+import { DEFAULT_PROVIDER_SETTINGS, outputTokenAllowance } from '../src/runtime/generation/settings';
 
 afterEach(() => window.localStorage.removeItem('speculus-response-calibration'));
 
@@ -51,5 +52,11 @@ describe('Speculus usability and rails', () => {
 
     window.localStorage.setItem('speculus-response-calibration', 'long');
     expect(responseTokenLimit(850)).toBe(850);
+  });
+
+  it('combines NovelAI character length with the calibration token ceiling', () => {
+    const provider = { kind: 'orbis' as const, model: 'xialong-v1', ...DEFAULT_PROVIDER_SETTINGS };
+    expect(outputTokenAllowance(provider, 450)).toBe(256);
+    expect(outputTokenAllowance({ ...provider, outputLengthCharacters: 4096 }, 200)).toBe(200);
   });
 });

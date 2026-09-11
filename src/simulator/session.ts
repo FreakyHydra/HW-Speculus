@@ -5,6 +5,7 @@ import { createBrainConfig } from '../runtime/brain/policies/core';
 import { resolveTargetProtocol } from '../runtime/brain/protocols/target';
 import { getResponseCalibration } from '../runtime/generation/compile-context';
 import type { SpeculusBrainConfigV1 } from '../runtime/brain/contracts';
+import { DEFAULT_PROVIDER_SETTINGS } from '../runtime/generation/settings';
 
 export const SESSION_VERSION = 1 as const;
 
@@ -53,7 +54,11 @@ export function createSession(now = Date.now(), launchPackage: ClientLaunchPacka
     brain: createBrainConfig(resolveTargetProtocol(launchPackage), getResponseCalibration()),
     diagnostics: [],
     settings: {
-      provider: { kind: launchPackage ? 'orbis' : 'mock', model: launchPackage?.model ?? 'speculus-deterministic', temperature: 0.8, maxTokens: 850 },
+      provider: {
+        kind: launchPackage ? 'orbis' : 'mock',
+        model: launchPackage?.model ?? 'speculus-deterministic',
+        ...DEFAULT_PROVIDER_SETTINGS,
+      },
       crtMotion: true,
     },
     nextTurnNumber: 1,

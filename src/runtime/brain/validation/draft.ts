@@ -50,9 +50,6 @@ export function validateDraft(input: {
   beatPlan: BeatPlanV1;
 }): DraftValidationResult {
   const issues: DraftValidationIssue[] = [];
-  if (input.provider.completionStatus && input.provider.completionStatus !== 'completed' && input.provider.completionStatus !== 'unknown') {
-    issues.push({ code: 'provider_incomplete', ruleId: 'PROVIDER-001', message: `Provider completion status is ${input.provider.completionStatus}.` });
-  }
   if (usesPlayerVoice(input.reply, input.authority.playerName)) {
     issues.push({ code: 'player_control', ruleId: 'PLAYER-VOICE-001', message: `The draft speaks for ${input.authority.playerName}.` });
   }

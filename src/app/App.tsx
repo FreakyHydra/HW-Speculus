@@ -12,6 +12,8 @@ import { exportRawSession, rawSessionFilename, resumeRawSession } from '../stora
 import { clearSession, loadSession, saveSession } from '../storage/session-storage';
 import { SPECULUS_RESPONSE_MODE_EVENT, type ResponseMode } from '../runtime/brain/contracts';
 import { RESPONSE_CALIBRATION_KEY } from '../runtime/generation/compile-context';
+import { DEFAULT_PROVIDER_SETTINGS, outputTokenAllowance } from '../runtime/generation/settings';
+import { RESPONSE_TOKEN_LIMITS } from '../runtime/generation/compile-context';
 
 type BootState = { status: 'receiving' | 'ready' | 'error'; error?: string };
 type ThemeMode = 'dark' | 'light' | 'auto';
@@ -278,6 +280,18 @@ export function App() {
     setTagDraft('');
   };
   const removeInfluenceTag = (tag: string) => updateInfluence({ tags: (session.influence?.tags ?? []).filter((item) => item !== tag) });
+  const updateProviderSettings = (patch: Partial<SimulatorSession['settings']['provider']>) => setSession((current) => current ? {
+    ...current,
+    settings: {
+      ...current.settings,
+      provider: { ...current.settings.provider, ...patch, preset: patch.preset ?? 'custom' },
+    },
+    updatedAt: Date.now(),
+  } : current);
+  const effectiveOutputTokens = outputTokenAllowance(
+    session.settings.provider,
+    RESPONSE_TOKEN_LIMITS[session.brain.responseMode],
+  );
   const exportSession = () => {
     try {
       const blob = new Blob([exportRawSession(session)], { type: 'application/json' });
@@ -417,6 +431,37 @@ export function App() {
             <div className="data-readout"><span>MODEL</span><strong>{session.settings.provider.model}</strong></div>
             <div className="data-readout"><span>CREDENTIAL</span><strong>SERVER SEALED</strong></div>
             <div className="data-readout"><span>DISPLAY</span><strong>{palette.toLocaleUpperCase('en-US')} / {theme.toLocaleUpperCase('en-US')}</strong></div>
+            <label>CONFIG PRESET
+              <select value={session.settings.provider.preset} onChange={(event) => {
+                if (event.target.value === 'novelai-default') updateProviderSettings({ ...DEFAULT_PROVIDER_SETTINGS });
+                else updateProviderSettings({ preset: 'custom' });
+              }}>
+                <option value="novelai-default">NOVELAI DEFAULT</option>
+                <option value="custom">CUSTOM</option>
+              </select>
+            </label>
+            <label>RANDOMNESS <span className="control-value">{session.settings.provider.temperature.toFixed(2)}</span>
+              <input type="range" min="0" max="2" step="0.05" value={session.settings.provider.temperature} onChange={(event) => updateProviderSettings({ temperature: Number(event.target.value) })} />
+            </label>
+            <label>OUTPUT LENGTH <span className="control-value">~{session.settings.provider.outputLengthCharacters} CHAR / {effectiveOutputTokens} TOK MAX</span>
+              <input type="range" min="128" max="4096" step="128" value={session.settings.provider.outputLengthCharacters} onChange={(event) => updateProviderSettings({ outputLengthCharacters: Number(event.target.value) })} />
+            </label>
+            <label>TOP-K <span className="control-value">{session.settings.provider.topK}</span>
+              <input type="range" min="0" max="500" step="1" value={session.settings.provider.topK} onChange={(event) => updateProviderSettings({ topK: Number(event.target.value) })} />
+            </label>
+            <label>NUCLEUS <span className="control-value">{session.settings.provider.topP.toFixed(2)}</span>
+              <input type="range" min="0.05" max="1" step="0.01" value={session.settings.provider.topP} onChange={(event) => updateProviderSettings({ topP: Number(event.target.value) })} />
+            </label>
+            <label>PRESENCE PENALTY <span className="control-value">{session.settings.provider.presencePenalty.toFixed(1)}</span>
+              <input type="range" min="-2" max="2" step="0.1" value={session.settings.provider.presencePenalty} onChange={(event) => updateProviderSettings({ presencePenalty: Number(event.target.value) })} />
+            </label>
+            <label>FREQUENCY PENALTY <span className="control-value">{session.settings.provider.frequencyPenalty.toFixed(1)}</span>
+              <input type="range" min="-2" max="2" step="0.1" value={session.settings.provider.frequencyPenalty} onChange={(event) => updateProviderSettings({ frequencyPenalty: Number(event.target.value) })} />
+            </label>
+            <label className="toggle"><input type="checkbox" checked={session.settings.provider.continueToEndOfSentence} onChange={(event) => updateProviderSettings({ continueToEndOfSentence: event.target.checked })} /> CONTINUE TO END OF SENTENCE</label>
+            <label>STOP SEQUENCES
+              <textarea rows={3} value={session.settings.provider.stopSequences.join('\n')} placeholder="ONE SEQUENCE PER LINE" onChange={(event) => updateProviderSettings({ stopSequences: event.target.value.split('\n').slice(0, 16) })} />
+            </label>
           </section>
         </details>
       </aside>}

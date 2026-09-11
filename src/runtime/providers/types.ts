@@ -5,6 +5,12 @@ export type ProviderRequest = {
   model: string;
   temperature: number;
   maxTokens: number;
+  topK: number;
+  topP: number;
+  presencePenalty: number;
+  frequencyPenalty: number;
+  stopSequences: string[];
+  continueToEndOfSentence: boolean;
   reroll?: boolean;
   signal?: AbortSignal;
 };

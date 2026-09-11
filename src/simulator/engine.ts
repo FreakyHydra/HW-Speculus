@@ -12,6 +12,7 @@ import { resolveTargetProtocol } from '../runtime/brain/protocols/target';
 import { assertDraftAccepted, validateDraft } from '../runtime/brain/validation/draft';
 import { getResponseCalibration } from '../runtime/generation/compile-context';
 import { createTurnAuthority } from '../runtime/brain/rules/mechanical';
+import { outputTokenAllowance } from '../runtime/generation/settings';
 
 function requireReady(session: SimulatorSession) {
   if (!session.character) throw new Error('Load a Character Card V2 subject first.');
@@ -71,10 +72,17 @@ export async function runTurn(
     beatPlan,
     authority,
   };
+  const responseModeLimit = responseTokenLimit(session.settings.provider.maxTokens, brain.responseMode);
   const providerRequest = {
     model: session.settings.provider.model,
     temperature: session.settings.provider.temperature,
-    maxTokens: responseTokenLimit(session.settings.provider.maxTokens, brain.responseMode),
+    maxTokens: outputTokenAllowance(session.settings.provider, responseModeLimit),
+    topK: session.settings.provider.topK,
+    topP: session.settings.provider.topP,
+    presencePenalty: session.settings.provider.presencePenalty,
+    frequencyPenalty: session.settings.provider.frequencyPenalty,
+    stopSequences: session.settings.provider.stopSequences,
+    continueToEndOfSentence: session.settings.provider.continueToEndOfSentence,
     reroll: isReroll,
   };
   let compiledContext = compileContext(contextInput);
