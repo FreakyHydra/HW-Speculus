@@ -25,6 +25,7 @@ describe('raw Speculus session transfer', () => {
   it('exports resumable state without exporting a stale launch package', () => {
     const session = createSession(100, launch());
     session.scene = 'Old scene';
+    session.composerDraft = { text: 'This has not been transmitted.', updatedAt: 450, submitted: false };
     session.transcript = [{ id: 'm1', turnId: 't1', sender: 'player', speaker: 'Skyler', text: 'Hello', timestamp: 101 }];
     const raw = exportRawSession(session, 500);
     const parsed = parseRawSession(raw);
@@ -33,6 +34,7 @@ describe('raw Speculus session transfer', () => {
     expect(parsed.source.assetId).toBe('asset-1');
     expect(parsed.state.scene).toBe('Old scene');
     expect(parsed.state.transcript).toHaveLength(1);
+    expect(parsed.state.composerDraft).toEqual({ text: 'This has not been transmitted.', updatedAt: 450, submitted: false });
     expect(raw).not.toContain('expiresAt');
     expect(raw).not.toContain('launchId');
   });
@@ -41,6 +43,7 @@ describe('raw Speculus session transfer', () => {
     const oldSession = createSession(100, launch());
     oldSession.scene = 'Continued scene';
     oldSession.nextTurnNumber = 7;
+    oldSession.composerDraft = { text: '*I begin to answer', updatedAt: 450, submitted: false };
     oldSession.transcript = [{ id: 'm1', turnId: 't1', sender: 'character', speaker: 'Peony', text: 'Still here.', timestamp: 101 }];
     const raw = exportRawSession(oldSession, 500);
 
@@ -50,6 +53,8 @@ describe('raw Speculus session transfer', () => {
     expect(resumed.scene).toBe('Continued scene');
     expect(resumed.transcript[0].text).toBe('Still here.');
     expect(resumed.nextTurnNumber).toBe(7);
+    expect(resumed.composerDraft.text).toBe('*I begin to answer');
+    expect(resumed.composerDraft.submitted).toBe(false);
     expect(resumed.launchPackage?.launchId).toBe('fresh-launch');
     expect(resumed.settings.provider.model).toBe(fresh.settings.provider.model);
     expect(resumed.updatedAt).toBe(2_000);

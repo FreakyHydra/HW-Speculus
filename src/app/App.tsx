@@ -11,6 +11,7 @@ import { createSession, withOpeningMessage, type SimulatorSession } from '../sim
 import { exportRawSession, rawSessionFilename, resumeRawSession } from '../storage/session-transfer';
 import { clearSession, loadSession, saveSession } from '../storage/session-storage';
 import { SPECULUS_RESPONSE_MODE_EVENT, type ResponseMode } from '../runtime/brain/contracts';
+import { RESPONSE_CALIBRATION_KEY } from '../runtime/generation/compile-context';
 
 type BootState = { status: 'receiving' | 'ready' | 'error'; error?: string };
 type ThemeMode = 'dark' | 'light' | 'auto';
@@ -125,7 +126,9 @@ export function App() {
           throw new Error('SIMULATION MEDIUM EXPIRED.');
         }
         if (!cancelled) {
+          window.localStorage.setItem(RESPONSE_CALIBRATION_KEY, next.brain.responseMode);
           setSession(next);
+          setInput(next.composerDraft.text);
           setBoot({ status: 'ready' });
         }
       } catch (reason) {
@@ -231,8 +234,15 @@ export function App() {
     setError('');
     try {
       const next = await runTurn(session, text, new BrowserProvider(), { rerollCharacterId: reroll?.id });
-      setSession(next);
-      setInput('');
+      if (reroll) {
+        setSession(next);
+      } else {
+        setSession({
+          ...next,
+          composerDraft: { text: '', updatedAt: Date.now(), submitted: false },
+        });
+        setInput('');
+      }
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'The simulation turn failed.'); }
     finally { setBusy(false); }
   }, [session]);
@@ -288,8 +298,11 @@ export function App() {
     if (!file) return;
     try {
       const raw = await file.text();
-      setSession((current) => current ? resumeRawSession(current, raw) : current);
-      setInput('');
+      const resumed = resumeRawSession(session, raw);
+      window.localStorage.setItem(RESPONSE_CALIBRATION_KEY, resumed.brain.responseMode);
+      window.dispatchEvent(new CustomEvent<ResponseMode>(SPECULUS_RESPONSE_MODE_EVENT, { detail: resumed.brain.responseMode }));
+      setSession(resumed);
+      setInput(resumed.composerDraft.text);
       setError('');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'The raw session could not be imported.');
@@ -446,7 +459,16 @@ export function App() {
         }} onDelete={(message) => setSession((current) => current ? deleteCharacterTurn(current, message.id) : current)} />
         <form className="composer" onSubmit={(event) => { event.preventDefault(); void submit(input); }}>
           <span aria-hidden="true">&gt;</span>
-          <textarea aria-label="Player turn" rows={3} value={input} onChange={(event) => setInput(event.target.value)} placeholder="ENTER PLAYER TURN" />
+          <textarea aria-label="Player turn" rows={3} value={input} onChange={(event) => {
+            const text = event.target.value;
+            const updatedAt = Date.now();
+            setInput(text);
+            setSession((current) => current ? {
+              ...current,
+              composerDraft: { text, updatedAt, submitted: false },
+              updatedAt,
+            } : current);
+          }} placeholder="ENTER PLAYER TURN" />
           <button className="terminal-button send-button" disabled={busy}>TRANSMIT</button>
         </form>
         {error && <div className="error-line" role="alert">FAULT: {error}</div>}

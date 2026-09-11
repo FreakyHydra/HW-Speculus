@@ -11,6 +11,7 @@ import { createBrainConfig, normalizeBrainConfig } from '../runtime/brain/polici
 import { resolveTargetProtocol } from '../runtime/brain/protocols/target';
 import { assertDraftAccepted, validateDraft } from '../runtime/brain/validation/draft';
 import { getResponseCalibration } from '../runtime/generation/compile-context';
+import { createTurnAuthority } from '../runtime/brain/rules/mechanical';
 
 function requireReady(session: SimulatorSession) {
   if (!session.character) throw new Error('Load a Character Card V2 subject first.');
@@ -58,6 +59,7 @@ export async function runTurn(
     ? normalizeBrainConfig(session.brain, targetProtocol, session.brain.responseMode)
     : createBrainConfig(targetProtocol, getResponseCalibration());
   const beatPlan = createBeatPlan(brain.targetProtocol, brain.responseMode, playerMessage.text);
+  const authority = createTurnAuthority(session.launchPackage, persona);
   const perception = resolvePerception(character, persona, session.scene, playerMessage.text);
   const activeCast = resolveActiveCast(character, playerMessage.text);
   const contextInput = {
@@ -67,6 +69,7 @@ export async function runTurn(
     launchPackage: session.launchPackage,
     brain,
     beatPlan,
+    authority,
   };
   const providerRequest = {
     model: session.settings.provider.model,
@@ -80,7 +83,7 @@ export async function runTurn(
     providerResult.text, playerMessage.text, character.name, persona.name,
     characterPrimary ? 'character' : 'narrator',
   );
-  let validation = validateDraft({ reply, playerName: persona.name, provider: providerResult.metadata, beatPlan });
+  let validation = validateDraft({ reply, authority, provider: providerResult.metadata, beatPlan });
   if (!validation.accepted) {
     const failures = validation.issues.map((issue) => issue.message).join(' ');
     compiledContext = compileContext({
@@ -89,7 +92,7 @@ export async function runTurn(
         `The previous draft was rejected: ${failures}`,
         'Discard it completely and generate a fresh replacement from the same frozen player turn.',
         `Use no more than ${beatPlan.maximumBeats} immediate beat${beatPlan.maximumBeats === 1 ? '' : 's'}.`,
-        `Never provide ${persona.name}'s dialogue, thoughts, choices, or voluntary actions.`,
+        `Never provide spoken dialogue for ${persona.name}.`,
         'Finish naturally at the earliest useful player handoff.',
       ].join('\n'),
     });
@@ -98,7 +101,7 @@ export async function runTurn(
       providerResult.text, playerMessage.text, character.name, persona.name,
       characterPrimary ? 'character' : 'narrator',
     );
-    validation = validateDraft({ reply, playerName: persona.name, provider: providerResult.metadata, beatPlan });
+    validation = validateDraft({ reply, authority, provider: providerResult.metadata, beatPlan });
   }
   assertDraftAccepted(validation);
   const characterMessage: TranscriptMessage = {
@@ -142,7 +145,7 @@ export async function runTurn(
     relationshipEvent,
     compiledContext,
     provider: providerResult.metadata,
-    brain: { config: brain, beatPlan, validation },
+    brain: { config: brain, beatPlan, authority, validation },
     finalReply: reply,
     previousReply,
   });

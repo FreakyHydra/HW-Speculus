@@ -1,63 +1,66 @@
 import type { SafeProviderMetadata } from '../../schema/types';
-import type { BeatPlanV1, DraftValidationIssue, DraftValidationResult } from '../contracts';
-
-const PLAYER_ACTION_VERBS = [
-  'walk', 'walks', 'step', 'steps', 'move', 'moves', 'turn', 'turns', 'nod', 'nods',
-  'shake', 'shakes', 'reach', 'reaches', 'take', 'takes', 'give', 'gives', 'open', 'opens',
-  'close', 'closes', 'enter', 'enters', 'leave', 'leaves', 'follow', 'follows', 'sit', 'sits',
-  'stand', 'stands', 'look', 'looks', 'say', 'says', 'ask', 'asks', 'answer', 'answers',
-  'think', 'thinks', 'decide', 'decides', 'feel', 'feels', 'realize', 'realizes',
-  'remember', 'remembers',
-];
+import type { BeatPlanV1, DraftValidationIssue, DraftValidationResult, TurnAuthorityV1 } from '../contracts';
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function controlsNamedPlayer(reply: string, playerName: string): boolean {
+function usesPlayerVoice(reply: string, playerName: string): boolean {
   const subject = escapeRegExp(playerName.trim());
-  const action = PLAYER_ACTION_VERBS.join('|');
   const actionSpans = [...reply.matchAll(/\*([^*]+)\*/g)].map((match) => match[1]);
-  const controlsAction = actionSpans.some((span) =>
-    new RegExp(`^\\s*(?:${subject}|you)\\s+(?:${action})\\b`, 'iu').test(span),
-  );
   const writesPlayerDialogue = playerName.trim()
     ? new RegExp(`(?:^|\\n)\\s*${subject}\\s*:`, 'imu').test(reply)
     : false;
   const voiceVerbs = 'say|says|said|ask|asks|asked|answer|answers|answered|reply|replies|replied|shout|shouts|shouted|whisper|whispers|whispered';
   const takesPlayerVoiceInAction = actionSpans.some((span) =>
-    new RegExp(`\\b(?:${subject}|you)\\s+(?:${voiceVerbs})\\b`, 'iu').test(span),
+    new RegExp(`\\b(?:${subject}|you)\\s+(?:managed\\s+to\\s+)?(?:${voiceVerbs}|gasp|gasps|gasped)\\b`, 'iu').test(span),
   );
   const attributesQuotedSpeechToPlayer = new RegExp(
-    `["”]\\s*,?\\s*(?:${subject}|you)\\s+(?:${voiceVerbs})\\b`,
+    `["”]\\s*,?\\s*(?:${subject}|you)\\s+(?:managed\\s+to\\s+)?(?:${voiceVerbs}|gasp|gasps|gasped)\\b`,
     'iu',
   ).test(reply);
-  return controlsAction || writesPlayerDialogue || takesPlayerVoiceInAction || attributesQuotedSpeechToPlayer;
+  return writesPlayerDialogue || takesPlayerVoiceInAction || attributesQuotedSpeechToPlayer;
 }
 
-function exceedsTurnScope(reply: string, beatPlan: BeatPlanV1): boolean {
-  const paragraphs = reply.split(/\n+/u).map((value) => value.trim()).filter(Boolean);
-  const actionSpans = [...reply.matchAll(/\*([^*]+)\*/g)].length;
-  const paragraphLimit = beatPlan.responseMode === 'concise' ? 2 : beatPlan.maximumBeats * 2;
-  const actionSpanLimit = beatPlan.maximumBeats * 2;
-  return paragraphs.length > paragraphLimit || actionSpans > actionSpanLimit;
+function inventsPrivatePlayerState(reply: string, playerName: string): boolean {
+  const subject = escapeRegExp(playerName.trim());
+  return [...reply.matchAll(/\*([^*]+)\*/g)].some((match) => new RegExp(
+    `^\\s*(?:${subject}|you)\\s+(?:feel|feels|felt|think|thinks|thought|realize|realizes|realized|remember|remembers|remembered|decide|decides|decided|wonder|wonders|wondered)\\b`,
+    'iu',
+  ).test(match[1]));
+}
+
+function inventsPlayerAction(reply: string, playerName: string): boolean {
+  const subject = escapeRegExp(playerName.trim());
+  const voluntaryActions = [
+    'agree', 'answer', 'ask', 'choose', 'close', 'decide', 'enter', 'follow', 'give', 'grab',
+    'leave', 'look', 'move', 'nod', 'open', 'reach', 'reply', 'say', 'shake', 'sit', 'stand',
+    'step', 'take', 'turn', 'walk',
+  ].join('|');
+  return [...reply.matchAll(/\*([^*]+)\*/g)].some((match) => new RegExp(
+    `^\\s*(?:${subject}|you)\\s+(?:(?:quietly|slowly|quickly|carefully|hesitantly|reluctantly)\\s+)?(?:${voluntaryActions})(?:s|ed)?\\b`,
+    'iu',
+  ).test(match[1]));
 }
 
 export function validateDraft(input: {
   reply: string;
-  playerName: string;
+  authority: TurnAuthorityV1;
   provider: SafeProviderMetadata;
   beatPlan: BeatPlanV1;
 }): DraftValidationResult {
   const issues: DraftValidationIssue[] = [];
   if (input.provider.completionStatus && input.provider.completionStatus !== 'completed' && input.provider.completionStatus !== 'unknown') {
-    issues.push({ code: 'provider_incomplete', message: `Provider completion status is ${input.provider.completionStatus}.` });
+    issues.push({ code: 'provider_incomplete', ruleId: 'PROVIDER-001', message: `Provider completion status is ${input.provider.completionStatus}.` });
   }
-  if (controlsNamedPlayer(input.reply, input.playerName)) {
-    issues.push({ code: 'player_control', message: `The draft assigns an action to ${input.playerName}.` });
+  if (usesPlayerVoice(input.reply, input.authority.playerName)) {
+    issues.push({ code: 'player_control', ruleId: 'PLAYER-VOICE-001', message: `The draft speaks for ${input.authority.playerName}.` });
   }
-  if (exceedsTurnScope(input.reply, input.beatPlan)) {
-    issues.push({ code: 'turn_scope', message: `The draft exceeds the ${input.beatPlan.responseMode} turn scope.` });
+  if (inventsPlayerAction(input.reply, input.authority.playerName)) {
+    issues.push({ code: 'player_control', ruleId: 'PLAYER-ACTION-001', message: `The draft invents a voluntary action for ${input.authority.playerName}.` });
+  }
+  if (inventsPrivatePlayerState(input.reply, input.authority.playerName)) {
+    issues.push({ code: 'player_control', ruleId: 'PLAYER-STATE-001', message: `The draft invents a private state for ${input.authority.playerName}.` });
   }
   return { accepted: issues.length === 0, issues };
 }

@@ -17,6 +17,11 @@ const storedSchema = z.object({
     tags: z.array(z.string()),
     freeform: z.string(),
   }).optional(),
+  composerDraft: z.object({
+    text: z.string(),
+    updatedAt: z.number(),
+    submitted: z.literal(false),
+  }).optional(),
   transcript: z.array(z.unknown()),
   relationships: z.record(z.string(), z.unknown()),
   brain: z.unknown().optional(),
@@ -43,6 +48,7 @@ export function deserializeSession(raw: string): SimulatorSession {
   const session = result.data as Omit<SimulatorSession, 'brain'> & { brain?: unknown };
   return {
     ...session,
+    composerDraft: session.composerDraft ?? { text: '', updatedAt: session.updatedAt, submitted: false },
     brain: normalizeBrainConfig(session.brain, resolveTargetProtocol(session.launchPackage), getResponseCalibration()),
   } as SimulatorSession;
 }

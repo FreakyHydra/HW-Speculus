@@ -82,6 +82,7 @@ export async function generateThroughOrbis(session: GenerationSession, request: 
       durationMs: Date.now() - started,
       requestId: response.headers.get('x-request-id') ?? undefined,
       inputTokensEstimate: Math.ceil(request.prompt.length / 4),
+      requestedMaxTokens: request.maxTokens,
       ...extractCompletion(value),
     };
     return { text, metadata };

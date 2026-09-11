@@ -1,13 +1,21 @@
 import { relationshipLabel, type getRelationship } from '../relationships/core';
 import type { CharacterCard, ClientLaunchPackage, CompiledContext, Persona, TranscriptMessage } from '../schema/types';
 import { redactPrivatePlayerKnowledge, stripModelControlTokens } from './format';
-import type { BeatPlanV1, ResponseMode, SpeculusBrainConfigV1 } from '../brain/contracts';
+import type { BeatPlanV1, ResponseMode, SpeculusBrainConfigV1, TurnAuthorityV1 } from '../brain/contracts';
 import { renderBeatPlan } from '../brain/planning/beat-plan';
+import { renderMechanicalAuthority } from '../brain/rules/mechanical';
 
 type Relationship = ReturnType<typeof getRelationship>;
 export type ResponseCalibration = ResponseMode;
 
 export const RESPONSE_CALIBRATION_KEY = 'speculus-response-calibration';
+
+export const RESPONSE_TOKEN_LIMITS: Record<ResponseCalibration, number> = {
+  concise: 200,
+  normal: 450,
+  long: 850,
+  adaptive: 450,
+};
 
 export function estimateTokens(value: string): number {
   return Math.ceil(value.length / 4);
@@ -20,19 +28,15 @@ export function getResponseCalibration(): ResponseCalibration {
 }
 
 export function responseTokenLimit(defaultMax: number, mode = getResponseCalibration()): number {
-  // Concise is a pacing preference, not a truncation mechanism. Give the model the
-  // normal provider budget so it can finish the current sentence/beat naturally.
-  if (mode === 'concise') return defaultMax;
-  if (mode === 'normal') return Math.min(Math.max(defaultMax, 550), 900);
-  if (mode === 'long') return Math.max(defaultMax, 1400);
-  return defaultMax;
+  return Math.min(defaultMax, RESPONSE_TOKEN_LIMITS[mode]);
 }
 
 function responseInstruction(mode: ResponseCalibration): string {
-  if (mode === 'concise') return 'Response calibration: CONCISE. Keep the reply very short: usually one immediate action/reaction beat and no more than 1-2 short paragraphs. Do not add recap, extra scene development, boilerplate questions, weather/time summaries, or multiple new beats. Always finish the current sentence and natural response beat; never cut off mid-sentence just to stay short.';
-  if (mode === 'normal') return 'Response calibration: NORMAL. Prefer roughly 2-4 moderate paragraphs with no unnecessary repetition.';
-  if (mode === 'long') return 'Response calibration: LONG. Allow a detailed response when useful, but remain focused on the current scene.';
-  return 'Response calibration: ADAPTIVE. Match response length to the immediate scene and player input; do not become verbose without a reason.';
+  const allowance = RESPONSE_TOKEN_LIMITS[mode];
+  if (mode === 'concise') return `Response calibration: SHORT. The provider allows at most ${allowance} output tokens. Keep the reply very short: usually one immediate action/reaction beat and no more than 1-2 short paragraphs. Do not add recap, extra scene development, boilerplate questions, weather/time summaries, or multiple new beats. Complete the current sentence before stopping.`;
+  if (mode === 'normal') return `Response calibration: NORMAL. The provider allows at most ${allowance} output tokens. Prefer roughly 2-4 moderate paragraphs with no unnecessary repetition. Complete the current sentence before stopping.`;
+  if (mode === 'long') return `Response calibration: LONG. The provider allows at most ${allowance} output tokens. Allow a detailed response when useful, but remain focused on the current scene and complete the current sentence before stopping.`;
+  return `Response calibration: ADAPTIVE. The provider allows at most ${allowance} output tokens. Match response length to the immediate scene and player input, and complete the current sentence before stopping.`;
 }
 
 export function compileContext(input: {
@@ -47,6 +51,7 @@ export function compileContext(input: {
   brain?: SpeculusBrainConfigV1;
   beatPlan?: BeatPlanV1;
   revisionInstruction?: string;
+  authority?: TurnAuthorityV1;
 }): CompiledContext {
   const { character, persona, relationship } = input;
   const primaryType = input.launchPackage?.primaryAsset.type ?? 'character';
@@ -56,7 +61,7 @@ export function compileContext(input: {
   const systemRules = isCharacterSubject
     ? [
       'You are the loaded roleplay subject in a controlled character simulation.',
-      `Write only ${character.name}'s next response. Never write the player's actions, thoughts, decisions, or dialogue.`,
+      `Write only ${character.name}'s next response. Never create spoken dialogue for the player.`,
     ]
     : [
       'You are a neutral simulation narrator observing a non-character Orbis asset.',
@@ -64,7 +69,7 @@ export function compileContext(input: {
       `A ${primaryType} is not a character. Never give ${primaryName} speech, thoughts, emotions, intentions, relationships, or autonomous character behavior unless the packaged canon explicitly identifies a separate character doing so.`,
       'Describe events, occupants, conditions, and observable changes around the asset without personifying the asset itself.',
       'Do not invent or name occupants. Introduce only people explicitly established by packaged canon, the transcript, or the current player turn.',
-      'Never write the player\'s actions, thoughts, decisions, or dialogue.',
+      'Never create spoken dialogue for the player.',
     ];
 
   const sections: Array<[string, string]> = [
@@ -98,6 +103,7 @@ export function compileContext(input: {
       'Keep action, dialogue, and thought inline when they belong to one natural paragraph.',
     ].join('\n')],
   ];
+  if (input.authority) sections.splice(1, 0, ['engine-laws', renderMechanicalAuthority(input.authority)]);
   if (input.beatPlan) sections.splice(1, 0, ['turn-contract', renderBeatPlan(input.beatPlan)]);
   if (input.launchPackage) {
     sections.splice(2, 0, ['orbis-asset', [

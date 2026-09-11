@@ -4,10 +4,10 @@ import { SPECULUS_RESPONSE_MODE_EVENT, type ResponseMode } from '../runtime/brai
 type Mode = ResponseMode;
 
 const DESCRIPTIONS: Record<Mode, string> = {
-  concise: '1-2 short paragraphs. Fast scene progression.',
-  normal: '2-4 moderate paragraphs. Balanced detail.',
-  long: 'Detailed response when the scene supports it.',
-  adaptive: 'Length follows the immediate scene and player input.',
+  concise: 'Up to 200 output tokens. Usually 1-2 short paragraphs.',
+  normal: 'Up to 450 output tokens. Balanced detail.',
+  long: 'Up to 850 output tokens. Detailed when useful.',
+  adaptive: 'Up to 450 output tokens. Length follows the scene.',
 };
 
 function currentMode(): Mode {
@@ -28,7 +28,7 @@ function installCalibrationControl() {
   for (const mode of ['concise', 'normal', 'long', 'adaptive'] as const) {
     const option = document.createElement('option');
     option.value = mode;
-    option.textContent = mode.toUpperCase();
+    option.textContent = mode === 'concise' ? 'SHORT' : mode.toUpperCase();
     select.append(option);
   }
   select.value = currentMode();
@@ -41,6 +41,12 @@ function installCalibrationControl() {
     const mode = select.value as Mode;
     window.localStorage.setItem(RESPONSE_CALIBRATION_KEY, mode);
     window.dispatchEvent(new CustomEvent<ResponseMode>(SPECULUS_RESPONSE_MODE_EVENT, { detail: mode }));
+    hint.textContent = DESCRIPTIONS[mode];
+  });
+
+  window.addEventListener(SPECULUS_RESPONSE_MODE_EVENT, (event) => {
+    const mode = (event as CustomEvent<ResponseMode>).detail;
+    select.value = mode;
     hint.textContent = DESCRIPTIONS[mode];
   });
 

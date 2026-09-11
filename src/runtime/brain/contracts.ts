@@ -9,6 +9,24 @@ export type TargetProtocol = SimulationAssetType;
 export type PolicyStage = 'resolve' | 'plan' | 'render' | 'validate' | 'reduce';
 export type PolicyStatus = 'draft' | 'test' | 'active' | 'retired';
 
+export type MechanicalAuthorityV1 = {
+  schemaVersion: 'mechanical-authority/1';
+  playerVoice: 'player_only';
+  npcPhysicalAgency: 'world_controlled';
+  placeCreation: 'orbis_registry_only';
+  improvisedDetailScope: 'session_only';
+  moralitySource: 'authored_world_only';
+};
+
+export type TurnAuthorityV1 = {
+  schemaVersion: 'turn-authority/1';
+  playerId: string;
+  playerName: string;
+  currentPlaceId?: string;
+  canonicalPlaces: Array<{ id: string; name: string }>;
+  mechanics: MechanicalAuthorityV1;
+};
+
 export type PolicySnapshotEntry = {
   id: string;
   version: string;
@@ -29,6 +47,7 @@ export type SpeculusBrainConfigV1 = {
   targetProtocol: TargetProtocol;
   policyProfileId: typeof SPECULUS_BRAIN_PROFILE;
   policySnapshot: PolicySnapshot;
+  mechanics: MechanicalAuthorityV1;
 };
 
 export type BeatPlanV1 = {
@@ -42,7 +61,8 @@ export type BeatPlanV1 = {
 };
 
 export type DraftValidationIssue = {
-  code: 'player_control' | 'provider_incomplete' | 'turn_scope';
+  code: 'player_control' | 'provider_incomplete';
+  ruleId: 'PLAYER-VOICE-001' | 'PLAYER-ACTION-001' | 'PLAYER-STATE-001' | 'PROVIDER-001';
   message: string;
 };
 

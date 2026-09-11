@@ -19,6 +19,11 @@ export type SimulatorSession = {
     tags: string[];
     freeform: string;
   };
+  composerDraft: {
+    text: string;
+    updatedAt: number;
+    submitted: false;
+  };
   transcript: TranscriptMessage[];
   relationships: RelationshipState;
   brain: SpeculusBrainConfigV1;
@@ -42,6 +47,7 @@ export function createSession(now = Date.now(), launchPackage: ClientLaunchPacka
     persona: launchPackage?.persona ?? null,
     scene: launchPackage?.scene ?? '',
     influence: { tags: [], freeform: '' },
+    composerDraft: { text: '', updatedAt: now, submitted: false },
     transcript: [],
     relationships: launchPackage?.relationshipState ?? {},
     brain: createBrainConfig(resolveTargetProtocol(launchPackage), getResponseCalibration()),

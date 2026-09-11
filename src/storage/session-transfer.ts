@@ -23,6 +23,11 @@ const rawSessionSchema = z.object({
       tags: z.array(z.string()),
       freeform: z.string(),
     }).optional(),
+    composerDraft: z.object({
+      text: z.string(),
+      updatedAt: z.number(),
+      submitted: z.literal(false),
+    }).optional(),
     transcript: z.array(z.unknown()),
     relationships: z.record(z.string(), z.unknown()),
     brain: z.unknown().optional(),
@@ -56,6 +61,7 @@ export function exportRawSession(session: SimulatorSession, now = Date.now()): s
       sessionId: session.id,
       scene: session.scene,
       influence: structuredClone(session.influence ?? { tags: [], freeform: '' }),
+      composerDraft: structuredClone(session.composerDraft),
       transcript: structuredClone(session.transcript),
       relationships: structuredClone(session.relationships),
       brain: structuredClone(session.brain),
@@ -90,6 +96,7 @@ export function resumeRawSession(current: SimulatorSession, raw: string, now = D
     id: imported.state.sessionId,
     scene: imported.state.scene,
     influence: imported.state.influence ?? { tags: [], freeform: '' },
+    composerDraft: imported.state.composerDraft ?? { text: '', updatedAt: now, submitted: false },
     transcript: imported.state.transcript as SimulatorSession['transcript'],
     relationships: imported.state.relationships as SimulatorSession['relationships'],
     brain: normalizeBrainConfig(

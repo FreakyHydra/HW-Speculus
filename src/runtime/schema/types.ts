@@ -124,6 +124,7 @@ export type SafeProviderMetadata = {
   inputTokensEstimate?: number;
   completionStatus?: 'completed' | 'max_tokens' | 'timeout' | 'cancelled' | 'bridge_interruption' | 'unknown';
   finishReason?: string;
+  requestedMaxTokens?: number;
 };
 
 export type DiagnosticsSnapshot = {
@@ -140,6 +141,7 @@ export type DiagnosticsSnapshot = {
   brain?: {
     config: import('../brain/contracts.js').SpeculusBrainConfigV1;
     beatPlan: import('../brain/contracts.js').BeatPlanV1;
+    authority: import('../brain/contracts.js').TurnAuthorityV1;
     validation: import('../brain/contracts.js').DraftValidationResult;
   };
   finalReply: string;

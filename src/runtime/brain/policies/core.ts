@@ -7,10 +7,14 @@ import {
   type SpeculusBrainConfigV1,
   type TargetProtocol,
 } from '../contracts';
+import { MECHANICAL_AUTHORITY_V1 } from '../rules/mechanical';
 
 export const CORE_POLICIES_V2: readonly PolicySnapshotEntry[] = [
-  { id: 'speculus.core.player-control', version: '2.0.0', stage: 'validate', status: 'active' },
+  { id: 'speculus.core.player-voice-ownership', version: '2.1.0', stage: 'validate', status: 'active' },
   { id: 'speculus.core.canon-and-physical-truth', version: '2.0.0', stage: 'resolve', status: 'active' },
+  { id: 'speculus.core.place-registry-authority', version: '2.1.0', stage: 'reduce', status: 'active' },
+  { id: 'speculus.core.session-fact-provenance', version: '2.1.0', stage: 'reduce', status: 'active' },
+  { id: 'speculus.core.world-rule-authority', version: '2.1.0', stage: 'resolve', status: 'active' },
   { id: 'speculus.core.target-protocol', version: '2.0.0', stage: 'resolve', status: 'active' },
   { id: 'speculus.core.knowledge-boundaries', version: '2.0.0', stage: 'render', status: 'active' },
   { id: 'speculus.core.turn-scope-and-handoff', version: '2.0.0', stage: 'plan', status: 'active' },
@@ -39,6 +43,7 @@ export function createBrainConfig(
     targetProtocol,
     policyProfileId: SPECULUS_BRAIN_PROFILE,
     policySnapshot: createPolicySnapshot(),
+    mechanics: { ...MECHANICAL_AUTHORITY_V1 },
   };
 }
 
@@ -61,5 +66,11 @@ export function normalizeBrainConfig(
     || !Array.isArray(candidate.policySnapshot.core)
     || !Array.isArray(candidate.policySnapshot.research)
   ) return createBrainConfig(targetProtocol, fallbackMode);
-  return { ...candidate, targetProtocol } as SpeculusBrainConfigV1;
+  return {
+    ...candidate,
+    targetProtocol,
+    mechanics: candidate.mechanics?.schemaVersion === 'mechanical-authority/1'
+      ? candidate.mechanics
+      : { ...MECHANICAL_AUTHORITY_V1 },
+  } as SpeculusBrainConfigV1;
 }

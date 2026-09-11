@@ -19,7 +19,7 @@ export function createBeatPlan(
     maximumBeats: BEAT_LIMITS[responseMode],
     immediateTrigger: playerInput.trim(),
     forbiddenAdvances: [
-      'player actions, thoughts, decisions, or dialogue',
+      'new spoken dialogue attributed to the player',
       'unrequested time skips or location transitions',
       'follow-on events after a natural player handoff',
       'new named people not present in packaged canon, the transcript, or the player turn',
@@ -39,7 +39,7 @@ export function renderBeatPlan(plan: BeatPlanV1): string {
     scope,
     'Continue from the exact stopping point. Do not recap or repeat the player input before reacting.',
     'Treat time, location, condition, and restraint changes explicitly authored in the player turn as the current state. Do not advance beyond that new stopping point.',
-    'Characters may physically affect, restrain, move, or overpower the player. Never supply the player\'s voice, thoughts, choices, consent, or voluntary actions.',
+    'Characters may physically affect, restrain, move, or overpower the player. Never supply spoken dialogue for the player.',
     `Forbidden advances: ${plan.forbiddenAdvances.join('; ')}.`,
     plan.playerHandoff,
   ].join('\n');

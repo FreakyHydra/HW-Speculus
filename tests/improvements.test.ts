@@ -47,12 +47,9 @@ describe('Speculus usability and rails', () => {
   it('applies response calibration limits', () => {
     window.localStorage.setItem('speculus-response-calibration', 'concise');
     expect(getResponseCalibration()).toBe('concise');
-    // Concise controls pacing through the prompt. It keeps the configured
-    // completion ceiling so the provider can finish the current sentence/beat
-    // instead of saving a token-cut fragment as a completed turn.
-    expect(responseTokenLimit(850)).toBe(850);
+    expect(responseTokenLimit(850)).toBe(200);
 
     window.localStorage.setItem('speculus-response-calibration', 'long');
-    expect(responseTokenLimit(850)).toBe(1400);
+    expect(responseTokenLimit(850)).toBe(850);
   });
 });
