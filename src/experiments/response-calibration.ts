@@ -1,6 +1,7 @@
-const RESPONSE_CALIBRATION_KEY = 'speculus-response-calibration';
+import { RESPONSE_CALIBRATION_KEY } from '../runtime/generation/compile-context';
+import { SPECULUS_RESPONSE_MODE_EVENT, type ResponseMode } from '../runtime/brain/contracts';
 
-type Mode = 'concise' | 'normal' | 'long' | 'adaptive';
+type Mode = ResponseMode;
 
 const DESCRIPTIONS: Record<Mode, string> = {
   concise: '1-2 short paragraphs. Fast scene progression.',
@@ -39,6 +40,7 @@ function installCalibrationControl() {
   select.addEventListener('change', () => {
     const mode = select.value as Mode;
     window.localStorage.setItem(RESPONSE_CALIBRATION_KEY, mode);
+    window.dispatchEvent(new CustomEvent<ResponseMode>(SPECULUS_RESPONSE_MODE_EVENT, { detail: mode }));
     hint.textContent = DESCRIPTIONS[mode];
   });
 

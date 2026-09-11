@@ -1,11 +1,13 @@
 import { relationshipLabel, type getRelationship } from '../relationships/core';
 import type { CharacterCard, ClientLaunchPackage, CompiledContext, Persona, TranscriptMessage } from '../schema/types';
 import { redactPrivatePlayerKnowledge, stripModelControlTokens } from './format';
+import type { BeatPlanV1, ResponseMode, SpeculusBrainConfigV1 } from '../brain/contracts';
+import { renderBeatPlan } from '../brain/planning/beat-plan';
 
 type Relationship = ReturnType<typeof getRelationship>;
-export type ResponseCalibration = 'concise' | 'normal' | 'long' | 'adaptive';
+export type ResponseCalibration = ResponseMode;
 
-const RESPONSE_CALIBRATION_KEY = 'speculus-response-calibration';
+export const RESPONSE_CALIBRATION_KEY = 'speculus-response-calibration';
 
 export function estimateTokens(value: string): number {
   return Math.ceil(value.length / 4);
@@ -17,8 +19,7 @@ export function getResponseCalibration(): ResponseCalibration {
   return value === 'concise' || value === 'normal' || value === 'long' || value === 'adaptive' ? value : 'adaptive';
 }
 
-export function responseTokenLimit(defaultMax: number): number {
-  const mode = getResponseCalibration();
+export function responseTokenLimit(defaultMax: number, mode = getResponseCalibration()): number {
   // Concise is a pacing preference, not a truncation mechanism. Give the model the
   // normal provider budget so it can finish the current sentence/beat naturally.
   if (mode === 'concise') return defaultMax;
@@ -43,12 +44,14 @@ export function compileContext(input: {
   influence?: { tags?: string[]; freeform?: string };
   launchPackage?: ClientLaunchPackage | null;
   reroll?: boolean;
+  brain?: SpeculusBrainConfigV1;
+  beatPlan?: BeatPlanV1;
 }): CompiledContext {
   const { character, persona, relationship } = input;
   const primaryType = input.launchPackage?.primaryAsset.type ?? 'character';
   const primaryName = input.launchPackage?.primaryAsset.name ?? character.name;
   const isCharacterSubject = primaryType === 'character';
-  const calibration = getResponseCalibration();
+  const calibration = input.brain?.responseMode ?? getResponseCalibration();
   const systemRules = isCharacterSubject
     ? [
       'You are the loaded roleplay subject in a controlled character simulation.',
@@ -93,6 +96,7 @@ export function compileContext(input: {
       'Keep action, dialogue, and thought inline when they belong to one natural paragraph.',
     ].join('\n')],
   ];
+  if (input.beatPlan) sections.splice(1, 0, ['turn-contract', renderBeatPlan(input.beatPlan)]);
   if (input.launchPackage) {
     sections.splice(2, 0, ['orbis-asset', [
       `Primary asset type: ${input.launchPackage.primaryAsset.type}`,
@@ -122,13 +126,17 @@ export function compileContext(input: {
   return {
     prompt,
     manifest: {
-      compilerVersion: 1,
+      compilerVersion: 2,
       includedSections: sections.map(([name]) => name),
       includedMessages: Math.min(20, input.transcript.length),
       estimatedInputTokens: estimateTokens(prompt),
       characterId: character.id,
       personaId: persona.id,
       scene: input.scene,
+      targetProtocol: input.brain?.targetProtocol ?? primaryType,
+      responseMode: calibration,
+      maximumBeats: input.beatPlan?.maximumBeats,
+      policyProfileId: input.brain?.policyProfileId,
     },
   };
 }

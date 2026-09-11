@@ -16,6 +16,30 @@ function extractText(value: unknown): string {
   return '';
 }
 
+function extractCompletion(value: unknown): Pick<SafeProviderMetadata, 'completionStatus' | 'finishReason'> {
+  if (!value || typeof value !== 'object') return { completionStatus: 'unknown' };
+  const record = value as Record<string, unknown>;
+  const nested = record.metadata && typeof record.metadata === 'object'
+    ? record.metadata as Record<string, unknown>
+    : {};
+  const raw = record.finishReason ?? record.finish_reason ?? record.stopReason ?? record.stop_reason
+    ?? nested.finishReason ?? nested.finish_reason ?? nested.stopReason ?? nested.stop_reason;
+  const finishReason = typeof raw === 'string' ? raw : undefined;
+  const reason = finishReason?.toLocaleLowerCase('en-US');
+  if (record.truncated === true || nested.truncated === true || reason === 'length' || reason === 'max_tokens' || reason === 'token_limit') {
+    return { completionStatus: 'max_tokens', finishReason };
+  }
+  if (reason === 'timeout') return { completionStatus: 'timeout', finishReason };
+  if (reason === 'cancelled' || reason === 'canceled') return { completionStatus: 'cancelled', finishReason };
+  if (reason === 'interrupted' || reason === 'bridge_interruption' || reason === 'error') {
+    return { completionStatus: 'bridge_interruption', finishReason };
+  }
+  if (reason === 'stop' || reason === 'complete' || reason === 'completed' || reason === 'end_turn' || reason === 'eos') {
+    return { completionStatus: 'completed', finishReason };
+  }
+  return { completionStatus: 'unknown', finishReason };
+}
+
 export async function generateThroughOrbis(session: GenerationSession, request: ProviderRequest): Promise<ProviderResult> {
   const base = process.env.ORBIS_GENERATION_API_URL;
   if (!base) throw new Error('The Orbis generation bridge is not configured.');
@@ -58,6 +82,7 @@ export async function generateThroughOrbis(session: GenerationSession, request: 
       durationMs: Date.now() - started,
       requestId: response.headers.get('x-request-id') ?? undefined,
       inputTokensEstimate: Math.ceil(request.prompt.length / 4),
+      ...extractCompletion(value),
     };
     return { text, metadata };
   } finally {

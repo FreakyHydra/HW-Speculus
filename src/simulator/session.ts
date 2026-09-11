@@ -1,6 +1,10 @@
 import { resolveSimulationSubject } from '../runtime/schema/launch-package';
 import type { DiagnosticsSnapshot, CharacterCard, ClientLaunchPackage, Persona, ProviderSettings, TranscriptMessage } from '../runtime/schema/types';
 import type { RelationshipState } from '../runtime/relationships/schema';
+import { createBrainConfig } from '../runtime/brain/policies/core';
+import { resolveTargetProtocol } from '../runtime/brain/protocols/target';
+import { getResponseCalibration } from '../runtime/generation/compile-context';
+import type { SpeculusBrainConfigV1 } from '../runtime/brain/contracts';
 
 export const SESSION_VERSION = 1 as const;
 
@@ -17,6 +21,7 @@ export type SimulatorSession = {
   };
   transcript: TranscriptMessage[];
   relationships: RelationshipState;
+  brain: SpeculusBrainConfigV1;
   diagnostics: DiagnosticsSnapshot[];
   settings: {
     provider: ProviderSettings;
@@ -39,6 +44,7 @@ export function createSession(now = Date.now(), launchPackage: ClientLaunchPacka
     influence: { tags: [], freeform: '' },
     transcript: [],
     relationships: launchPackage?.relationshipState ?? {},
+    brain: createBrainConfig(resolveTargetProtocol(launchPackage), getResponseCalibration()),
     diagnostics: [],
     settings: {
       provider: { kind: launchPackage ? 'orbis' : 'mock', model: launchPackage?.model ?? 'speculus-deterministic', temperature: 0.8, maxTokens: 850 },

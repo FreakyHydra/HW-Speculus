@@ -15,6 +15,8 @@ export class MockProvider implements ProviderAdapter {
         endpoint: 'internal://mock',
         durationMs: Math.round(performance.now() - started),
         inputTokensEstimate: Math.ceil(request.prompt.length / 4),
+        completionStatus: 'completed' as const,
+        finishReason: 'mock_complete',
       },
     };
   }

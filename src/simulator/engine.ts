@@ -6,6 +6,11 @@ import { heuristicRelationshipScorer, type RelationshipScorer } from '../runtime
 import type { ProviderAdapter } from '../runtime/providers/types';
 import type { TranscriptMessage } from '../runtime/schema/types';
 import type { SimulatorSession } from './session';
+import { createBeatPlan } from '../runtime/brain/planning/beat-plan';
+import { createBrainConfig, normalizeBrainConfig } from '../runtime/brain/policies/core';
+import { resolveTargetProtocol } from '../runtime/brain/protocols/target';
+import { assertDraftAccepted, validateDraft } from '../runtime/brain/validation/draft';
+import { getResponseCalibration } from '../runtime/generation/compile-context';
 
 function requireReady(session: SimulatorSession) {
   if (!session.character) throw new Error('Load a Character Card V2 subject first.');
@@ -44,7 +49,15 @@ export async function runTurn(
   const transcriptBeforeReply = isReroll
     ? session.transcript.slice(0, rerollIndex)
     : [...session.transcript, playerMessage];
-  const relationshipBefore = getRelationship(session.relationships, character.id, persona.id);
+  const relationshipBase = isReroll
+    ? removeRelationshipTurns(session.relationships, character.id, persona.id, [characterMessageId])
+    : session.relationships;
+  const relationshipBefore = getRelationship(relationshipBase, character.id, persona.id);
+  const targetProtocol = resolveTargetProtocol(session.launchPackage);
+  const brain = session.brain
+    ? normalizeBrainConfig(session.brain, targetProtocol, session.brain.responseMode)
+    : createBrainConfig(targetProtocol, getResponseCalibration());
+  const beatPlan = createBeatPlan(brain.targetProtocol, brain.responseMode, playerMessage.text);
   const perception = resolvePerception(character, persona, session.scene, playerMessage.text);
   const activeCast = resolveActiveCast(character, playerMessage.text);
   const compiledContext = compileContext({
@@ -52,12 +65,14 @@ export async function runTurn(
     relationship: relationshipBefore, reroll: isReroll,
     influence: session.influence,
     launchPackage: session.launchPackage,
+    brain,
+    beatPlan,
   });
   const providerResult = await provider.generate({
     prompt: compiledContext.prompt,
     model: session.settings.provider.model,
     temperature: session.settings.provider.temperature,
-    maxTokens: responseTokenLimit(session.settings.provider.maxTokens),
+    maxTokens: responseTokenLimit(session.settings.provider.maxTokens, brain.responseMode),
     reroll: isReroll,
   });
   const reply = normalizeRoleplayReply(
@@ -67,6 +82,8 @@ export async function runTurn(
     persona.name,
     characterPrimary ? 'character' : 'narrator',
   );
+  const validation = validateDraft({ reply, playerName: persona.name, provider: providerResult.metadata, beatPlan });
+  assertDraftAccepted(validation);
   const characterMessage: TranscriptMessage = {
     id: characterMessageId, turnId, sender: 'character', speaker: character.name, text: reply, timestamp: Date.now(),
   };
@@ -80,7 +97,7 @@ export async function runTurn(
       characterReply: reply,
       previousScore: relationshipBefore.score,
     });
-    relationships = commitRelationshipEvent(session.relationships, {
+    relationships = commitRelationshipEvent(relationshipBase, {
       characterId: character.id,
       personaId: persona.id,
       turnId: characterMessage.id,
@@ -108,6 +125,7 @@ export async function runTurn(
     relationshipEvent,
     compiledContext,
     provider: providerResult.metadata,
+    brain: { config: brain, beatPlan, validation },
     finalReply: reply,
     previousReply,
   });
@@ -115,6 +133,7 @@ export async function runTurn(
     ...session,
     transcript,
     relationships,
+    brain,
     diagnostics,
     nextTurnNumber: isReroll ? session.nextTurnNumber : session.nextTurnNumber + 1,
     updatedAt: Date.now(),

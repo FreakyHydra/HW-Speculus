@@ -10,6 +10,7 @@ import { deleteCharacterTurn, runTurn } from '../simulator/engine';
 import { createSession, withOpeningMessage, type SimulatorSession } from '../simulator/session';
 import { exportRawSession, rawSessionFilename, resumeRawSession } from '../storage/session-transfer';
 import { clearSession, loadSession, saveSession } from '../storage/session-storage';
+import { SPECULUS_RESPONSE_MODE_EVENT, type ResponseMode } from '../runtime/brain/contracts';
 
 type BootState = { status: 'receiving' | 'ready' | 'error'; error?: string };
 type ThemeMode = 'dark' | 'light' | 'auto';
@@ -143,6 +144,19 @@ export function App() {
     return () => window.removeEventListener('keydown', enter);
   }, [boot.status]);
   useEffect(() => { if (session) saveSession(session); }, [session]);
+
+  useEffect(() => {
+    const updateResponseMode = (event: Event) => {
+      const mode = (event as CustomEvent<ResponseMode>).detail;
+      setSession((current) => current ? {
+        ...current,
+        brain: { ...current.brain, responseMode: mode },
+        updatedAt: Date.now(),
+      } : current);
+    };
+    window.addEventListener(SPECULUS_RESPONSE_MODE_EVENT, updateResponseMode);
+    return () => window.removeEventListener(SPECULUS_RESPONSE_MODE_EVENT, updateResponseMode);
+  }, []);
 
   const resizePanel = useCallback((side: SplitterSide, requestedWidth: number) => {
     const workstation = workstationRef.current;

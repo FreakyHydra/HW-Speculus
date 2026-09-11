@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import { SESSION_VERSION, type SimulatorSession } from '../simulator/session';
+import { normalizeBrainConfig } from '../runtime/brain/policies/core';
+import { resolveTargetProtocol } from '../runtime/brain/protocols/target';
+import { getResponseCalibration } from '../runtime/generation/compile-context';
 
 export const SESSION_STORAGE_KEY = 'speculus.session.v1';
 
@@ -16,6 +19,7 @@ const storedSchema = z.object({
   }).optional(),
   transcript: z.array(z.unknown()),
   relationships: z.record(z.string(), z.unknown()),
+  brain: z.unknown().optional(),
   diagnostics: z.array(z.unknown()),
   settings: z.object({
     provider: z.object({ kind: z.enum(['mock', 'orbis']), model: z.string(), temperature: z.number(), maxTokens: z.number() }),
@@ -36,7 +40,11 @@ export function deserializeSession(raw: string): SimulatorSession {
   try { parsed = JSON.parse(raw); } catch { throw new Error('Stored session JSON is malformed.'); }
   const result = storedSchema.safeParse(parsed);
   if (!result.success) throw new Error('Stored session is not a supported Speculus session.');
-  return result.data as SimulatorSession;
+  const session = result.data as Omit<SimulatorSession, 'brain'> & { brain?: unknown };
+  return {
+    ...session,
+    brain: normalizeBrainConfig(session.brain, resolveTargetProtocol(session.launchPackage), getResponseCalibration()),
+  } as SimulatorSession;
 }
 
 export function loadSession(storage: Pick<Storage, 'getItem'> = sessionStorage): SimulatorSession | null {

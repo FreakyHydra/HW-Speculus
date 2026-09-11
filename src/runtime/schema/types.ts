@@ -100,13 +100,17 @@ export type ActiveCastResult = {
 };
 
 export type ContextManifest = {
-  compilerVersion: 1;
+  compilerVersion: 1 | 2;
   includedSections: string[];
   includedMessages: number;
   estimatedInputTokens: number;
   characterId: string;
   personaId: string;
   scene: string;
+  targetProtocol?: SimulationAssetType;
+  responseMode?: import('../brain/contracts.js').ResponseMode;
+  maximumBeats?: number;
+  policyProfileId?: string;
 };
 
 export type CompiledContext = { prompt: string; manifest: ContextManifest };
@@ -118,6 +122,8 @@ export type SafeProviderMetadata = {
   durationMs: number;
   requestId?: string;
   inputTokensEstimate?: number;
+  completionStatus?: 'completed' | 'max_tokens' | 'timeout' | 'cancelled' | 'bridge_interruption' | 'unknown';
+  finishReason?: string;
 };
 
 export type DiagnosticsSnapshot = {
@@ -131,6 +137,11 @@ export type DiagnosticsSnapshot = {
   relationshipEvent: unknown;
   compiledContext: CompiledContext;
   provider: SafeProviderMetadata;
+  brain?: {
+    config: import('../brain/contracts.js').SpeculusBrainConfigV1;
+    beatPlan: import('../brain/contracts.js').BeatPlanV1;
+    validation: import('../brain/contracts.js').DraftValidationResult;
+  };
   finalReply: string;
   previousReply?: string;
 };

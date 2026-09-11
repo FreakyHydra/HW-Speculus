@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { SimulatorSession } from '../simulator/session';
+import { normalizeBrainConfig } from '../runtime/brain/policies/core';
+import { resolveTargetProtocol } from '../runtime/brain/protocols/target';
 
 export const RAW_SESSION_FORMAT = 'speculus-raw-session' as const;
 export const RAW_SESSION_VERSION = 1 as const;
@@ -23,6 +25,7 @@ const rawSessionSchema = z.object({
     }).optional(),
     transcript: z.array(z.unknown()),
     relationships: z.record(z.string(), z.unknown()),
+    brain: z.unknown().optional(),
     diagnostics: z.array(z.unknown()),
     settings: z.object({
       provider: z.object({ kind: z.enum(['mock', 'orbis']), model: z.string(), temperature: z.number(), maxTokens: z.number() }),
@@ -55,6 +58,7 @@ export function exportRawSession(session: SimulatorSession, now = Date.now()): s
       influence: structuredClone(session.influence ?? { tags: [], freeform: '' }),
       transcript: structuredClone(session.transcript),
       relationships: structuredClone(session.relationships),
+      brain: structuredClone(session.brain),
       diagnostics: structuredClone(session.diagnostics),
       settings: structuredClone(session.settings),
       nextTurnNumber: session.nextTurnNumber,
@@ -88,6 +92,11 @@ export function resumeRawSession(current: SimulatorSession, raw: string, now = D
     influence: imported.state.influence ?? { tags: [], freeform: '' },
     transcript: imported.state.transcript as SimulatorSession['transcript'],
     relationships: imported.state.relationships as SimulatorSession['relationships'],
+    brain: normalizeBrainConfig(
+      imported.state.brain,
+      resolveTargetProtocol(current.launchPackage),
+      current.brain.responseMode,
+    ),
     diagnostics: imported.state.diagnostics as SimulatorSession['diagnostics'],
     settings: {
       ...imported.state.settings,
