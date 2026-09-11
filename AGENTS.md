@@ -1,7 +1,7 @@
 # Speculus repository rules
 
-- Work on `dev` unless the user explicitly requests another branch.
-- Keep Speculus standalone. Never add runtime imports from HW-Library or HowlingWhispers.
+- Work on `main`. Temporary feature branches are non-authoritative until merged into `main`.
+- Keep Speculus standalone. Never add runtime imports from HW-Orbis, HW-Library, or the historical HowlingWhispers application.
 - Keep React UI, simulator orchestration, pure runtime logic, storage, and provider transports separated.
 - Speculus has no normal standalone entry flow. Production sessions arrive only through a one-time Orbis launch package.
 - Provider adapters receive compiled prompts, never mutable session state.
