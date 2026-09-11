@@ -42,7 +42,7 @@ export type BeatPlanV1 = {
 };
 
 export type DraftValidationIssue = {
-  code: 'player_control' | 'provider_incomplete';
+  code: 'player_control' | 'provider_incomplete' | 'turn_scope';
   message: string;
 };
 

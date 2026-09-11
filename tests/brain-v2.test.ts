@@ -103,6 +103,37 @@ describe('Speculus Brain V2 contracts', () => {
     await expect(runTurn(session, 'I inspect the door.', provider)).rejects.toThrow(/assigns an action to Skyler/i);
   });
 
+  it('allows an NPC to physically overpower and move the player', async () => {
+    const session = createSession(100, launch('place'));
+    const provider = new FixedProvider('*Ragna gestures, and the Wardens haul you to your feet.* "We will talk at the station."');
+    const next = await runTurn(session, 'I look up from my restraints.', provider);
+    expect(next.transcript.at(-1)?.text).toContain('haul you to your feet');
+  });
+
+  it('rejects dialogue attributed to the player', async () => {
+    const session = createSession(100, launch());
+    const provider = new FixedProvider('*Peony waits.* "I will cooperate," you say.');
+    await expect(runTurn(session, 'I watch her.', provider)).rejects.toThrow(/assigns an action to Skyler/i);
+  });
+
+  it('rejects the original multi-scene Brackenjaw response in concise mode', async () => {
+    const session = createSession(100, launch('place'));
+    session.brain.responseMode = 'concise';
+    const provider = new FixedProvider([
+      '*The trail forked before you beneath the Brackenjaw sign.*',
+      '*Farther ahead, the trail opened into a village clearing and revealed the ranger station.*',
+      '*A young coyote crossed from the inn and called out to you.* "Traveler!"',
+    ].join('\n'));
+    await expect(runTurn(session, '"This must be it."', provider)).rejects.toThrow(/exceeds the concise turn scope/i);
+  });
+
+  it('allows the narrator to preserve a restraint state authored by the player', async () => {
+    const session = createSession(100, launch('place'));
+    const provider = new FixedProvider('*Two Boundary Wardens remain over you while one checks the restraints already around your wrists.* "Captain is coming."');
+    const next = await runTurn(session, '*I wake restrained and look up at them.*', provider);
+    expect(next.transcript.at(-1)?.text).toContain('checks the restraints');
+  });
+
   it('scores a reroll from the frozen pre-turn relationship state', async () => {
     const seenScores: number[] = [];
     const scorer: RelationshipScorer = {

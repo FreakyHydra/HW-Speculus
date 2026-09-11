@@ -22,6 +22,7 @@ export function createBeatPlan(
       'player actions, thoughts, decisions, or dialogue',
       'unrequested time skips or location transitions',
       'follow-on events after a natural player handoff',
+      'new named people not present in packaged canon, the transcript, or the player turn',
       'generic closing questions',
     ],
     playerHandoff: 'Stop when the immediate reaction or consequence gives the player a meaningful opportunity to respond.',
@@ -37,6 +38,8 @@ export function renderBeatPlan(plan: BeatPlanV1): string {
     `Response mode: ${plan.responseMode.toLocaleUpperCase('en-US')}.`,
     scope,
     'Continue from the exact stopping point. Do not recap or repeat the player input before reacting.',
+    'Treat time, location, condition, and restraint changes explicitly authored in the player turn as the current state. Do not advance beyond that new stopping point.',
+    'Characters may physically affect, restrain, move, or overpower the player. Never supply the player\'s voice, thoughts, choices, consent, or voluntary actions.',
     `Forbidden advances: ${plan.forbiddenAdvances.join('; ')}.`,
     plan.playerHandoff,
   ].join('\n');

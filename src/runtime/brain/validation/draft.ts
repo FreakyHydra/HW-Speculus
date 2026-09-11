@@ -24,7 +24,23 @@ function controlsNamedPlayer(reply: string, playerName: string): boolean {
   const writesPlayerDialogue = playerName.trim()
     ? new RegExp(`(?:^|\\n)\\s*${subject}\\s*:`, 'imu').test(reply)
     : false;
-  return controlsAction || writesPlayerDialogue;
+  const voiceVerbs = 'say|says|said|ask|asks|asked|answer|answers|answered|reply|replies|replied|shout|shouts|shouted|whisper|whispers|whispered';
+  const takesPlayerVoiceInAction = actionSpans.some((span) =>
+    new RegExp(`\\b(?:${subject}|you)\\s+(?:${voiceVerbs})\\b`, 'iu').test(span),
+  );
+  const attributesQuotedSpeechToPlayer = new RegExp(
+    `["”]\\s*,?\\s*(?:${subject}|you)\\s+(?:${voiceVerbs})\\b`,
+    'iu',
+  ).test(reply);
+  return controlsAction || writesPlayerDialogue || takesPlayerVoiceInAction || attributesQuotedSpeechToPlayer;
+}
+
+function exceedsTurnScope(reply: string, beatPlan: BeatPlanV1): boolean {
+  const paragraphs = reply.split(/\n+/u).map((value) => value.trim()).filter(Boolean);
+  const actionSpans = [...reply.matchAll(/\*([^*]+)\*/g)].length;
+  const paragraphLimit = beatPlan.responseMode === 'concise' ? 2 : beatPlan.maximumBeats * 2;
+  const actionSpanLimit = beatPlan.maximumBeats * 2;
+  return paragraphs.length > paragraphLimit || actionSpans > actionSpanLimit;
 }
 
 export function validateDraft(input: {
@@ -39,6 +55,9 @@ export function validateDraft(input: {
   }
   if (controlsNamedPlayer(input.reply, input.playerName)) {
     issues.push({ code: 'player_control', message: `The draft assigns an action to ${input.playerName}.` });
+  }
+  if (exceedsTurnScope(input.reply, input.beatPlan)) {
+    issues.push({ code: 'turn_scope', message: `The draft exceeds the ${input.beatPlan.responseMode} turn scope.` });
   }
   return { accepted: issues.length === 0, issues };
 }

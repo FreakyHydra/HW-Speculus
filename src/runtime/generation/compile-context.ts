@@ -62,6 +62,7 @@ export function compileContext(input: {
       `The primary asset is explicitly typed as ${primaryType}: ${primaryName}.`,
       `A ${primaryType} is not a character. Never give ${primaryName} speech, thoughts, emotions, intentions, relationships, or autonomous character behavior unless the packaged canon explicitly identifies a separate character doing so.`,
       'Describe events, occupants, conditions, and observable changes around the asset without personifying the asset itself.',
+      'Do not invent or name occupants. Introduce only people explicitly established by packaged canon, the transcript, or the current player turn.',
       'Never write the player\'s actions, thoughts, decisions, or dialogue.',
     ];
 
