@@ -60,29 +60,46 @@ export async function runTurn(
   const beatPlan = createBeatPlan(brain.targetProtocol, brain.responseMode, playerMessage.text);
   const perception = resolvePerception(character, persona, session.scene, playerMessage.text);
   const activeCast = resolveActiveCast(character, playerMessage.text);
-  const compiledContext = compileContext({
+  const contextInput = {
     character, persona, scene: session.scene, transcript: transcriptBeforeReply,
     relationship: relationshipBefore, reroll: isReroll,
     influence: session.influence,
     launchPackage: session.launchPackage,
     brain,
     beatPlan,
-  });
-  const providerResult = await provider.generate({
-    prompt: compiledContext.prompt,
+  };
+  const providerRequest = {
     model: session.settings.provider.model,
     temperature: session.settings.provider.temperature,
     maxTokens: responseTokenLimit(session.settings.provider.maxTokens, brain.responseMode),
     reroll: isReroll,
-  });
-  const reply = normalizeRoleplayReply(
-    providerResult.text,
-    playerMessage.text,
-    character.name,
-    persona.name,
+  };
+  let compiledContext = compileContext(contextInput);
+  let providerResult = await provider.generate({ ...providerRequest, prompt: compiledContext.prompt });
+  let reply = normalizeRoleplayReply(
+    providerResult.text, playerMessage.text, character.name, persona.name,
     characterPrimary ? 'character' : 'narrator',
   );
-  const validation = validateDraft({ reply, playerName: persona.name, provider: providerResult.metadata, beatPlan });
+  let validation = validateDraft({ reply, playerName: persona.name, provider: providerResult.metadata, beatPlan });
+  if (!validation.accepted) {
+    const failures = validation.issues.map((issue) => issue.message).join(' ');
+    compiledContext = compileContext({
+      ...contextInput,
+      revisionInstruction: [
+        `The previous draft was rejected: ${failures}`,
+        'Discard it completely and generate a fresh replacement from the same frozen player turn.',
+        `Use no more than ${beatPlan.maximumBeats} immediate beat${beatPlan.maximumBeats === 1 ? '' : 's'}.`,
+        `Never provide ${persona.name}'s dialogue, thoughts, choices, or voluntary actions.`,
+        'Finish naturally at the earliest useful player handoff.',
+      ].join('\n'),
+    });
+    providerResult = await provider.generate({ ...providerRequest, prompt: compiledContext.prompt, reroll: true });
+    reply = normalizeRoleplayReply(
+      providerResult.text, playerMessage.text, character.name, persona.name,
+      characterPrimary ? 'character' : 'narrator',
+    );
+    validation = validateDraft({ reply, playerName: persona.name, provider: providerResult.metadata, beatPlan });
+  }
   assertDraftAccepted(validation);
   const characterMessage: TranscriptMessage = {
     id: characterMessageId, turnId, sender: 'character', speaker: character.name, text: reply, timestamp: Date.now(),

@@ -52,6 +52,25 @@ class FixedProvider implements ProviderAdapter {
   }
 }
 
+class SequenceProvider implements ProviderAdapter {
+  readonly kind = 'mock' as const;
+  requests: ProviderRequest[] = [];
+  constructor(private readonly replies: string[]) {}
+  async generate(request: ProviderRequest) {
+    this.requests.push(request);
+    return {
+      text: this.replies[this.requests.length - 1] ?? this.replies.at(-1) ?? '',
+      metadata: {
+        provider: 'mock' as const,
+        model: request.model,
+        endpoint: 'test://brain-v2-sequence',
+        durationMs: 1,
+        completionStatus: 'completed' as const,
+      },
+    };
+  }
+}
+
 describe('Speculus Brain V2 contracts', () => {
   it('creates an explicit policy snapshot and target protocol', () => {
     const session = createSession(100, launch('place'));
@@ -125,6 +144,20 @@ describe('Speculus Brain V2 contracts', () => {
       '*A young coyote crossed from the inn and called out to you.* "Traveler!"',
     ].join('\n'));
     await expect(runTurn(session, '"This must be it."', provider)).rejects.toThrow(/exceeds the concise turn scope/i);
+  });
+
+  it('automatically replaces a rejected concise draft from the frozen turn', async () => {
+    const session = createSession(100, launch('place'));
+    session.brain.responseMode = 'concise';
+    const provider = new SequenceProvider([
+      ['*The trail forks.*', '*The village opens ahead.*', '*Fen approaches from the inn.* "Hello."'].join('\n'),
+      '*The weathered Brackenjaw sign creaks above the fork while both marked trails remain quiet.*',
+    ]);
+    const next = await runTurn(session, '"This must be it."', provider);
+    expect(provider.requests).toHaveLength(2);
+    expect(provider.requests[1].prompt).toContain('<revision>');
+    expect(next.transcript.at(-1)?.text).toContain('Brackenjaw sign creaks');
+    expect(next.diagnostics.at(-1)?.compiledContext.manifest.includedSections).toContain('revision');
   });
 
   it('allows the narrator to preserve a restraint state authored by the player', async () => {

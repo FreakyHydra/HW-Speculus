@@ -46,6 +46,7 @@ export function compileContext(input: {
   reroll?: boolean;
   brain?: SpeculusBrainConfigV1;
   beatPlan?: BeatPlanV1;
+  revisionInstruction?: string;
 }): CompiledContext {
   const { character, persona, relationship } = input;
   const primaryType = input.launchPackage?.primaryAsset.type ?? 'character';
@@ -116,6 +117,7 @@ export function compileContext(input: {
     ].filter(Boolean).join('\n')]);
   }
   if (input.reroll) sections.push(['reroll', 'Generate a genuinely different reaction from the same preceding player turn while preserving canon and continuity.']);
+  if (input.revisionInstruction) sections.push(['revision', input.revisionInstruction]);
   const history = input.transcript.slice(-20).map((message) => {
     const raw = stripModelControlTokens(message.text).trim();
     const text = message.sender === 'player' ? redactPrivatePlayerKnowledge(raw) : raw;
