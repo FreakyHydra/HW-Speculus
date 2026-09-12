@@ -61,8 +61,13 @@ export type BeatPlanV1 = {
 };
 
 export type DraftValidationIssue = {
-  code: 'player_control';
-  ruleId: 'PLAYER-VOICE-001' | 'PLAYER-ACTION-001' | 'PLAYER-STATE-001';
+  code: 'player_control' | 'turn_scope' | 'world_truth';
+  ruleId:
+    | 'PLAYER-VOICE-001'
+    | 'PLAYER-ACTION-001'
+    | 'PLAYER-STATE-001'
+    | 'HANDOFF-001'
+    | 'RENDER-STATE-001';
   message: string;
 };
 
