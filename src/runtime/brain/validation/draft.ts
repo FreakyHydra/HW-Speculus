@@ -43,6 +43,19 @@ function inventsPlayerAction(reply: string, playerName: string): boolean {
   ).test(match[1]));
 }
 
+function emitsEngineStatus(reply: string): boolean {
+  const withoutDialogue = reply.replace(/"[^"]*"/g, '');
+  return /<[^>\r\n]{1,400}>/u.test(withoutDialogue)
+    || /(?:^|\n)\s*(?:procedural\s+)?(?:status|state|relationship|trust|fear)\s*:/imu.test(withoutDialogue)
+    || /\b(?:procedural|engine)\s+(?:status|state)\b/iu.test(withoutDialogue);
+}
+
+function asksGenericPlayerHandoffQuestion(reply: string): boolean {
+  const withoutDialogue = reply.replace(/"[^"]*"/g, '').trim();
+  if (/\([^()\r\n]*\?\)\s*$/u.test(withoutDialogue)) return true;
+  return /(?:^|\n)\s*\*?\s*(?:what\s+do\s+you\s+do(?:\s+now)?|what\s+will\s+you\s+do(?:\s+now)?|what\s+now|what\s+happens\s+next|where\s+(?:will|do)\s+you\b[^?]*|how\s+(?:will|do)\s+you\s+(?:respond|react)\b[^?]*)\?\s*\*?\s*$/imu.test(withoutDialogue);
+}
+
 export function validateDraft(input: {
   reply: string;
   authority: TurnAuthorityV1;
@@ -58,6 +71,12 @@ export function validateDraft(input: {
   }
   if (inventsPrivatePlayerState(input.reply, input.authority.playerName)) {
     issues.push({ code: 'player_control', ruleId: 'PLAYER-STATE-001', message: `The draft invents a private state for ${input.authority.playerName}.` });
+  }
+  if (asksGenericPlayerHandoffQuestion(input.reply)) {
+    issues.push({ code: 'turn_scope', ruleId: 'HANDOFF-001', message: 'The draft adds a narrator/GM question instead of yielding control cleanly.' });
+  }
+  if (emitsEngineStatus(input.reply)) {
+    issues.push({ code: 'world_truth', ruleId: 'RENDER-STATE-001', message: 'The draft exposes engine or procedural state inside the visible roleplay reply.' });
   }
   return { accepted: issues.length === 0, issues };
 }
