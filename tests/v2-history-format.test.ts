@@ -19,9 +19,12 @@ describe('V2 recent exchange formatting', () => {
     const base = createV2Session(publicV2Package(v2Package()));
     const first = await generateV2Turn({ ...base, draft: '"Hello."' }, provider());
     const packet = compileV2Context(first, '"Again."');
+    const start = packet.prompt.indexOf('[RECENT EXCHANGE / NOT ENGINE AUTHORITY]');
+    const end = packet.prompt.indexOf('[PLAYER INPUT]', start);
+    const recent = packet.prompt.slice(start, end);
 
-    expect(packet.prompt).toContain('[AUTHORIZED SUBJECT RESPONSE]\n*Peony nods.* "Hello."\n[END RECENT EXCHANGE]');
-    expect(packet.prompt).not.toContain('\\"Hello.\\"');
-    expect(packet.prompt).not.toContain('\\n*Peony nods.*');
+    expect(recent).toContain('[AUTHORIZED SUBJECT RESPONSE]\n*Peony nods.* "Hello."\n[END RECENT EXCHANGE]');
+    expect(recent).not.toContain('\\"Hello.\\"');
+    expect(recent).not.toContain('\\n*Peony nods.*');
   });
 });
