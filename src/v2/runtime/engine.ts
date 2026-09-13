@@ -64,6 +64,9 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
     estimatedInputTokens: compiled.estimatedInputTokens, outputBudget: compiled.outputBudget,
     issues, warnings, model: session.launch.model, durationMs: result.metadata.durationMs,
     completionStatus: result.metadata.completionStatus ?? 'unknown', worldRevision: session.world.revision,
+    providerKind: result.metadata.provider, providerEndpoint: result.metadata.endpoint, requestId: result.metadata.requestId,
+    finishReason: result.metadata.finishReason, requestedMaxTokens: result.metadata.requestedMaxTokens,
+    providerInputTokensEstimate: result.metadata.inputTokensEstimate,
   };
   if (issues.length) throw new V2DraftRejected(`Draft rejected: ${issues.join(' ')}`, diagnostics);
   const at = options.now ?? Date.now();
