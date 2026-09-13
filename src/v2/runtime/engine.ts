@@ -7,8 +7,10 @@ export class V2DraftRejected extends Error {
   constructor(message: string, readonly diagnostics: V2Diagnostics) { super(message); }
 }
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // These are structural checks, not a claim of complete semantic understanding.
-export function validateV2Reply(text: string) {
+export function validateV2Reply(text: string, playerName = '') {
   const issues: string[] = [];
   if (!text.trim()) issues.push('The model returned an empty reply.');
   if (text.length > 64000) issues.push('The reply exceeds the safe transport size.');
@@ -17,6 +19,9 @@ export function validateV2Reply(text: string) {
   }
   if (/^\s*(?:PLAYER|USER|SYSTEM|ENGINE STATE|VALIDATION RESULTS)\s*:/im.test(text)) {
     issues.push('The draft contains an unauthorized player or engine section.');
+  }
+  if (playerName.trim() && new RegExp(`^\\s*${escapeRegExp(playerName.trim())}\\s*:`, 'im').test(text)) {
+    issues.push('The draft writes a speaker turn for the player persona.');
   }
   return issues;
 }
@@ -41,12 +46,16 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
     prompt: compiled.prompt, model: session.launch.model,
     temperature: settings.temperature, maxTokens: settings.maxTokens, topK: settings.topK, topP: settings.topP,
     presencePenalty: settings.presencePenalty, frequencyPenalty: settings.frequencyPenalty,
-    stopSequences: [...new Set([...settings.stopSequences, '\nPLAYER:', `\n${session.launch.persona.name}:`])].slice(0, 16),
+    // V2 is a renderer packet, not the legacy speaker-tag chat format. Hidden
+    // player/persona stop strings can match at token zero and turn a formatting
+    // mistake into an empty HTTP-200 completion. Only authored/user settings are
+    // forwarded here; the Orbis bridge still applies provider-control stops.
+    stopSequences: [...settings.stopSequences],
     continueToEndOfSentence: settings.continueToEndOfSentence, reroll: options.reroll, signal: options.signal,
   });
   if (options.signal?.aborted) throw new Error('Generation cancelled. No turn or state was committed.');
   options.onPhase?.('validate');
-  const issues = validateV2Reply(result.text);
+  const issues = validateV2Reply(result.text, session.launch.persona.name);
   const warnings = ['Semantic canon validation and automatic action resolution are not implemented yet. Prose cannot commit physical state.'];
   if (result.metadata.completionStatus === 'max_tokens') warnings.push('The provider reached the output limit. The reply is preserved without local truncation. Increase the budget and reroll if needed.');
   if (compiled.omitted.length) warnings.push('Some history/canon was omitted. Inspect the Context tab for the exact list.');
