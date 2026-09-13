@@ -11,4 +11,9 @@ describe('V2 roleplay formatting', () => {
     expect(normalizeV2RoleplayFormat('*She looks up.* "Hello." [Careful.]'))
       .toBe('*She looks up.* "Hello." [Careful.]');
   });
+
+  it('does not invent action markers between adjacent dialogue spans', () => {
+    expect(normalizeV2RoleplayFormat('"No." "Really?"'))
+      .toBe('"No." "Really?"');
+  });
 });

@@ -9,6 +9,25 @@ export class V2DraftRejected extends Error {
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+function normalizeActionChunk(value: string) {
+  if (!value.trim()) return value;
+  const leading = value.match(/^\s*/)?.[0] ?? '';
+  const trailing = value.match(/\s*$/)?.[0] ?? '';
+  const end = Math.max(leading.length, value.length - trailing.length);
+  const core = value.slice(leading.length, end).replace(/^\*+\s*/, '').replace(/\s*\*+$/, '').trim();
+  return core ? `${leading}*${core}*${trailing}` : value;
+}
+
+export function normalizeV2RoleplayFormat(text: string) {
+  return text.trim().split(/(\[[^\]\n]+\]|"[^"\n]*"|“[^”\n]*”)/g).map((part) => {
+    if (!part) return '';
+    if ((part.startsWith('[') && part.endsWith(']'))
+      || (part.startsWith('"') && part.endsWith('"'))
+      || (part.startsWith('“') && part.endsWith('”'))) return part;
+    return part.split('\n').map(normalizeActionChunk).join('\n');
+  }).join('').trim();
+}
+
 // These are structural checks, not a claim of complete semantic understanding.
 export function validateV2Reply(text: string, playerName = '') {
   const issues: string[] = [];
@@ -55,8 +74,11 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
   });
   if (options.signal?.aborted) throw new Error('Generation cancelled. No turn or state was committed.');
   options.onPhase?.('validate');
-  const issues = validateV2Reply(result.text, session.launch.persona.name);
+  const rawReply = result.text.trim();
+  const normalizedReply = normalizeV2RoleplayFormat(rawReply);
+  const issues = validateV2Reply(normalizedReply, session.launch.persona.name);
   const warnings = ['Semantic canon validation and automatic action resolution are not implemented yet. Prose cannot commit physical state.'];
+  if (normalizedReply !== rawReply) warnings.push('Roleplay formatting was normalized before commit so narration/action, dialogue and inner voice remain structurally distinct.');
   if (result.metadata.completionStatus === 'max_tokens') warnings.push('The provider reached the output limit. The reply is preserved without local truncation. Increase the budget and reroll if needed.');
   if (compiled.omitted.length) warnings.push('Some history/canon was omitted. Inspect the Context tab for the exact list.');
   const diagnostics: V2Diagnostics = {
@@ -77,7 +99,7 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
   if (issues.length) throw new V2DraftRejected(`Draft rejected: ${issues.join(' ')}`, diagnostics);
   const at = options.now ?? Date.now();
   const id = options.reroll ? last!.id : `v2:${session.id}:${session.nextTurn}`;
-  const turn: V2Turn = { id, player, reply: result.text.trim(), createdAt: options.reroll ? last!.createdAt : at, worldRevision: session.world.revision, diagnostics };
+  const turn: V2Turn = { id, player, reply: normalizedReply, createdAt: options.reroll ? last!.createdAt : at, worldRevision: session.world.revision, diagnostics };
   options.onPhase?.('commit');
   return {
     ...session, draft: options.reroll ? session.draft : '', turns: [...base.turns, turn],
