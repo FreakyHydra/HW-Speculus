@@ -43,9 +43,11 @@ describe('V2 generation transaction', () => {
     const next = await generateV2Turn(value, provider, { onPhase: (phase) => phases.push(phase) });
     expect(value).toEqual(before); expect(next.world).toEqual(value.world);
     expect(next.turns).toHaveLength(1); expect(next.events).toHaveLength(1); expect(next.draft).toBe('');
-    expect(provider.generate).toHaveBeenCalledWith(expect.objectContaining({ maxTokens: 1024, temperature: 0.7, topK: 50, topP: 0.8, presencePenalty: 0.2, frequencyPenalty: 0.3, continueToEndOfSentence: false, stopSequences: expect.arrayContaining(['END']) }));
+    expect(provider.generate).toHaveBeenCalledWith(expect.objectContaining({ maxTokens: 1024, temperature: 0.7, topK: 50, topP: 0.8, presencePenalty: 0.2, frequencyPenalty: 0.3, continueToEndOfSentence: false, stopSequences: ['END'] }));
     expect(phases).toEqual(['context', 'generate', 'validate', 'commit']);
     const request = provider.generate.mock.calls[0] as unknown as [ProviderRequest];
+    expect(request[0].stopSequences).toEqual(['END']);
+    expect(request[0].prompt).toContain('Do not prefix it with a speaker name');
     expect(request[0]).not.toHaveProperty('world'); expect(request[0]).not.toHaveProperty('generationGrant');
   });
   it('rerolls replace the latest event and preserve an unsent draft; deletion removes the event', async () => {
@@ -63,6 +65,7 @@ describe('V2 generation transaction', () => {
   it('does not commit a rejected, failed, cancelled or expired generation', async () => {
     const value = session(); const copy = structuredClone(value);
     await expect(generateV2Turn(value, adapter('PLAYER: I leave.'))).rejects.toBeInstanceOf(V2DraftRejected);
+    await expect(generateV2Turn(value, adapter(`${value.launch.persona.name}: I leave.`))).rejects.toBeInstanceOf(V2DraftRejected);
     const failing: ProviderAdapter = { kind: 'mock', generate: async () => { throw new Error('offline'); } };
     await expect(generateV2Turn(value, failing)).rejects.toThrow('offline');
     const abort = new AbortController();
