@@ -67,6 +67,12 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
     providerKind: result.metadata.provider, providerEndpoint: result.metadata.endpoint, requestId: result.metadata.requestId,
     finishReason: result.metadata.finishReason, requestedMaxTokens: result.metadata.requestedMaxTokens,
     providerInputTokensEstimate: result.metadata.inputTokensEstimate,
+    generationSettings: {
+      output: settings.output, maxTokens: settings.maxTokens, temperature: settings.temperature,
+      topK: settings.topK, topP: settings.topP, presencePenalty: settings.presencePenalty,
+      frequencyPenalty: settings.frequencyPenalty, stopSequences: [...settings.stopSequences],
+      continueToEndOfSentence: settings.continueToEndOfSentence,
+    },
   };
   if (issues.length) throw new V2DraftRejected(`Draft rejected: ${issues.join(' ')}`, diagnostics);
   const at = options.now ?? Date.now();
