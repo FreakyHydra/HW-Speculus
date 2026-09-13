@@ -15,6 +15,17 @@ function printableTurns(session: V2Session) {
 
 function providerView(session: V2Session, diagnostic: V2Diagnostics | undefined) {
   if (!diagnostic) return { status: 'No generated turn has produced provider diagnostics yet.' };
+  const settings = diagnostic.generationSettings ?? {
+    output: session.settings.output,
+    maxTokens: session.settings.maxTokens,
+    temperature: session.settings.temperature,
+    topK: session.settings.topK,
+    topP: session.settings.topP,
+    presencePenalty: session.settings.presencePenalty,
+    frequencyPenalty: session.settings.frequencyPenalty,
+    stopSequences: session.settings.stopSequences,
+    continueToEndOfSentence: session.settings.continueToEndOfSentence,
+  };
   return {
     provider: diagnostic.providerKind ?? 'unknown',
     model: diagnostic.model,
@@ -25,17 +36,7 @@ function providerView(session: V2Session, diagnostic: V2Diagnostics | undefined)
     durationMs: diagnostic.durationMs,
     requestedMaxTokens: diagnostic.requestedMaxTokens ?? diagnostic.outputBudget,
     providerInputTokensEstimate: diagnostic.providerInputTokensEstimate ?? diagnostic.estimatedInputTokens,
-    settings: {
-      outputPreset: session.settings.output,
-      maxTokens: session.settings.maxTokens,
-      temperature: session.settings.temperature,
-      topK: session.settings.topK,
-      topP: session.settings.topP,
-      presencePenalty: session.settings.presencePenalty,
-      frequencyPenalty: session.settings.frequencyPenalty,
-      stopSequences: session.settings.stopSequences,
-      continueToEndOfSentence: session.settings.continueToEndOfSentence,
-    },
+    settings,
   };
 }
 
