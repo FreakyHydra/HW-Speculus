@@ -74,4 +74,55 @@ describe('separate V1/V2 bridge authorization', () => {
     expect((await post(base, '/api/v2/generate', { ...requestBody('separate-launch-one'), model: 'glm-4-6' }, { Cookie: cookies })).status).toBe(403);
     expect(observed).toHaveLength(2);
   });
+
+  it.each([1, 2] as const)('shows the underlying Orbis/NovelAI error in V%s without echoing upstream data', async (version) => {
+    env(); const gateway = express(); gateway.use(express.json());
+    const requestId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    let calls = 0;
+    gateway.post('/generate', (_req, res) => {
+      calls += 1;
+      res.status(502).json({
+        code: 'NOVELAI_INVALID_REQUEST', upstreamStatus: 400, parameter: 'max_tokens', requestedMaxTokens: 1024,
+        requestId, error: 'test-only-opaque-generation-grant PRIVATE PROVIDER TOKEN PRIVATE SCENE',
+      });
+    });
+    vi.stubEnv('ORBIS_GENERATION_API_URL', `${await listen(gateway)}/generate`);
+    const base = await listen(createApp());
+    const launch = await deposit(base, version);
+    const prefix = version === 2 ? '/api/v2' : '/api';
+    const claimed = await fetch(`${base}${prefix}/launch/${launch.code}`);
+    const cookie = claimed.headers.get('set-cookie')!.split(';')[0];
+    const response = await post(base, `${prefix}/generate`, requestBody(`fixture-launch-${version}`), { Cookie: cookie });
+    expect(response.status).toBe(502);
+    const failure = await response.text();
+    expect(failure).toContain('NovelAI HTTP 400');
+    expect(failure).toContain('Rejected parameter: max_tokens');
+    expect(failure).toContain('Requested output: 1024 tokens');
+    expect(failure).toContain(requestId);
+    expect(failure).not.toContain('test-only-opaque-generation-grant');
+    expect(failure).not.toContain('PRIVATE');
+    expect(calls).toBe(1);
+  });
+
+  it.each([
+    ['legacy', 'NovelAI returned an empty roleplay reply.'],
+    ['html', 'HTTP 502 without a recognized error'],
+    ['unknown', 'HTTP 502 without a recognized error'],
+  ])('handles a %s Orbis failure during a staged deployment', async (kind, expected) => {
+    env(); const gateway = express();
+    gateway.post('/generate', (_req, res) => {
+      if (kind === 'legacy') res.status(502).json({ error: 'NovelAI returned an empty roleplay reply.' });
+      else if (kind === 'html') res.status(502).send('<html>PRIVATE UPSTREAM ERROR</html>');
+      else res.status(502).json({ code: 'toString', error: 'PRIVATE UPSTREAM ERROR', requestId: 'PRIVATE REQUEST ID', parameter: 'PRIVATE' });
+    });
+    vi.stubEnv('ORBIS_GENERATION_API_URL', `${await listen(gateway)}/generate`);
+    const base = await listen(createApp());
+    const launch = await deposit(base, 2);
+    const claimed = await fetch(`${base}/api/v2/launch/${launch.code}`);
+    const response = await post(base, '/api/v2/generate', requestBody('fixture-launch-2'), { Cookie: claimed.headers.get('set-cookie')!.split(';')[0] });
+    expect(response.status).toBe(502);
+    const failure = await response.text();
+    expect(failure).toContain(expected);
+    expect(failure).not.toContain('PRIVATE');
+  });
 });

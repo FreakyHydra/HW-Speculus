@@ -1,5 +1,6 @@
 import type { SafeProviderMetadata, SimulationAsset } from '../../src/runtime/schema/types.js';
 import type { ProviderRequest, ProviderResult } from '../../src/runtime/providers/types.js';
+import { bridgeErrorMessage } from './bridge-error.js';
 
 export type GenerationSession = {
   launchId: string;
@@ -76,7 +77,10 @@ export async function generateThroughOrbis(session: GenerationSession, request: 
       const detail = error instanceof Error ? error.message : 'network request failed';
       throw new Error(`ORBIS NETWORK FAILURE: ${detail}`);
     }
-    if (!response.ok) throw new Error(`Orbis generation bridge returned HTTP ${response.status}.`);
+    if (!response.ok) {
+      const failure: unknown = await response.json().catch(() => null);
+      throw new Error(bridgeErrorMessage(response.status, failure, response.headers.get('x-request-id')));
+    }
     const value: unknown = await response.json();
     const text = extractText(value);
     if (!text.trim()) throw new Error('EMPTY GENERATION: Orbis generation bridge returned no roleplay text.');

@@ -93,6 +93,21 @@ Claims and generation responses are not cacheable. Production cookies are Secure
 No Fabula inventory, economy, dice, world population or autonomous game systems
 are introduced by this slice.
 
+### Generation failure diagnostics
+
+The shared server transport now recognizes safe Orbis failure codes and the
+previous bridge's static error messages. It displays the NovelAI HTTP status,
+known rejected parameter, output budget or empty-reply finish reason when supplied,
+plus an Orbis request ID for log correlation. Unknown/HTML errors get a readable
+fallback; raw upstream bodies are never shown. This applies to both engine routes
+without changing successful generation requests. V2 also handles HTML gateway
+responses from its own reverse proxy.
+
+Deploy the matching Orbis API for the full error contract. No migration is needed
+for this diagnostic fix. It resolves the hidden error details, not the still
+unconfirmed underlying cause of the original generic HTTP 502 report. A live retry
+and its request ID are needed to identify that provider failure.
+
 ## Rollout
 
 1. Build and deploy this Speculus revision with existing bridge environment.

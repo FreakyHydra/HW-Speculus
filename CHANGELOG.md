@@ -4,6 +4,9 @@ Speculus uses a human-readable release version plus a 7-character Git build id s
 
 ## Unreleased: isolated V2 foundation
 
+- Preserve safe Orbis/NovelAI error categories, provider status, rejected setting
+  and request IDs instead of hiding generation failures behind a generic 502.
+  Handle unreadable V2 gateway responses without a JSON parsing crash.
 - Add a separately loaded `/v2` research terminal, runtime, context compiler,
   explicit world/knowledge state, event ledger and versioned raw session transfer.
 - Add version-2 launch/claim/generation endpoints and independent per-launch
