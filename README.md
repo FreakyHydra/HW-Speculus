@@ -6,6 +6,14 @@ The user selects a character, world, place, item, faction, or other record in Or
 
 A direct visit without an active package deliberately produces a 1982-style missing-system-medium error.
 
+## Experimental V2
+
+`/v2` is a separately loaded research terminal and runtime foundation. V1 at `/`
+keeps its existing behavior. Select V2 in Orbis Account settings and use Simulate
+to receive a V2 launch. State, authorization cookies and raw export formats remain
+separate. See [V2 foundation and rollout](docs/v2-foundation.md) for implemented
+features, explicit limitations and the matching Orbis migration.
+
 ## Security boundary
 
 - NovelAI credentials are entered and managed only in Orbis.

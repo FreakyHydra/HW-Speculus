@@ -1,22 +1,9 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import { App } from './app/App';
-import { installAutoScrollToggle } from './experiments/auto-scroll';
-import { installAutoTurn } from './experiments/auto-turn';
-import { installComposerSafely } from './experiments/composer-bootstrap';
-import { installResponseCalibration } from './experiments/response-calibration';
-import { installRoleplayTextControls } from './experiments/roleplay-text-controls';
-import './styles/index.css';
-import './styles/resizable-panels.css';
-import './styles/diagnostic-turns.css';
-import './styles/live-transcript.css';
-import './styles/light-theme-contrast.css';
-import './styles/viewport-layout.css';
-import './styles/composer-experiment.css';
+// Load only the selected engine. V1 experiments, CSS and storage never boot in V2.
+const path = window.location.pathname;
+if (path === '/v2' || path.startsWith('/v2/')) {
+  void import('./v2/main');
+} else {
+  void import('./v1-entry');
+}
 
-installComposerSafely();
-installResponseCalibration();
-installRoleplayTextControls();
-installAutoTurn();
-installAutoScrollToggle();
-createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+export {};

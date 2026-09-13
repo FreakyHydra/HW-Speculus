@@ -1,0 +1,135 @@
+import { useEffect, useRef, useState } from 'react';
+import { parseV2ClientPackage, type V2ClientPackage } from '../contracts/launch';
+import { V2BrowserProvider } from '../providers/browser';
+import { generateV2Turn, V2DraftRejected, type EnginePhase } from '../runtime/engine';
+import { createV2Session, deleteLastTurn, operateWorld, type V2Diagnostics, type V2Session } from '../runtime/session';
+import { exportV2Session, importV2Session, loadV2Session, MAX_V2_FILE_BYTES, saveV2Session } from '../storage/session';
+import { V2DiagnosticsPanel } from './Diagnostics';
+import { SettingsPanel } from './SettingsPanel';
+import { V2Transcript } from './Transcript';
+
+// React StrictMode replays mount effects. A one-time launch must be claimed once.
+let claim: { code: string; promise: Promise<V2ClientPackage> } | null = null;
+function claimPackage(code: string) {
+  if (claim?.code === code) return claim.promise;
+  const promise = fetch(`/api/v2/launch/${encodeURIComponent(code)}`, { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
+    const body = await response.json() as { package?: unknown; error?: string };
+    if (!response.ok) throw new Error(body.error || 'V2 launch could not be claimed.');
+    return parseV2ClientPackage(body.package);
+  });
+  claim = { code, promise };
+  return promise;
+}
+const messageOf = (error: unknown) => error instanceof Error ? error.message : 'V2 could not complete this action.';
+
+export function V2App() {
+  const [session, setSession] = useState<V2Session | null>(null);
+  const [booting, setBooting] = useState(true);
+  const [error, setError] = useState('');
+  const [storageError, setStorageError] = useState('');
+  const [phase, setPhase] = useState<EnginePhase | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importLock = useRef(false);
+  const [importRevision, setImportRevision] = useState(0);
+  const [rejected, setRejected] = useState<V2Diagnostics | null>(null);
+  const [showSettings, setShowSettings] = useState(true);
+  const [showDiagnostics, setShowDiagnostics] = useState(true);
+  const controller = useRef<AbortController | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    document.title = 'Speculus V2 | Simulation Laboratory';
+    const code = new URLSearchParams(window.location.search).get('launch');
+    void (async () => {
+      try {
+        const next = code ? createV2Session(await claimPackage(code)) : loadV2Session();
+        if (!next) throw new Error('Simulation package not found. Select Speculus V2 in Orbis Account settings, then use Simulate on a record.');
+        if (active) {
+          if (code) window.history.replaceState({}, '', window.location.pathname);
+          setSession(next);
+        }
+      } catch (cause) { if (active) setError(messageOf(cause)); }
+      finally { if (active) setBooting(false); }
+    })();
+    return () => { active = false; controller.current?.abort(); };
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    try { saveV2Session(session); setStorageError(''); }
+    catch { setStorageError('Tab storage is unavailable or full. Export your session now to preserve it.'); }
+  }, [session]);
+
+  const generate = async (reroll = false) => {
+    if (!session || controller.current || importLock.current) return;
+    const active = new AbortController();
+    controller.current = active; setError(''); setRejected(null);
+    try {
+      const next = await generateV2Turn(session, new V2BrowserProvider(session.launch.launchId), {
+        reroll, signal: active.signal, onPhase: setPhase,
+      });
+      if (!active.signal.aborted) setSession(next);
+    } catch (cause) {
+      setError(active.signal.aborted ? 'Cancelled. Your draft and committed state are unchanged.' : messageOf(cause));
+      if (cause instanceof V2DraftRejected) setRejected(cause.diagnostics);
+    } finally { controller.current = null; setPhase(null); }
+  };
+
+  const download = () => {
+    if (!session) return;
+    try {
+      const url = URL.createObjectURL(new Blob([exportV2Session(session)], { type: 'application/json' }));
+      const anchor = document.createElement('a'); anchor.href = url;
+      anchor.download = `${session.launch.primaryAsset.name.replace(/[^a-z0-9_-]+/gi, '-').slice(0, 60)}-speculus-v2-session.json`;
+      anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (cause) { setError(messageOf(cause)); }
+  };
+
+  const importFile = async (file: File) => {
+    if (!session || controller.current || importLock.current) return;
+    if (file.size > MAX_V2_FILE_BYTES) { setError('V2 imports are limited to 16 MB.'); return; }
+    importLock.current = true; setImporting(true);
+    try {
+      const next = importV2Session(await file.text(), session);
+      if (!window.confirm('Replace this V2 session with the imported transcript and state? Export the current session first if you want to keep it. V1 is unaffected.')) return;
+      setSession(next); setImportRevision((value) => value + 1); setRejected(null); setError('');
+    } catch (cause) { setError(messageOf(cause)); }
+    finally { importLock.current = false; setImporting(false); if (fileInput.current) fileInput.current.value = ''; }
+  };
+
+  const busy = phase !== null || importing;
+  const expired = session ? session.launch.expiresAt <= Date.now() : false;
+  return <main className={`spec-v2 ${session?.settings.crtEffects !== false ? 'v2-crt' : ''}`}>
+    <header className="v2-masthead"><div><div className="v2-brand"><h1>SPECULUS</h1><span>V2</span><span className="v2-badge">Experimental</span></div><p>Howling Whispers / Simulation lab</p></div>
+      <div className="v2-connection"><span>{session ? 'ORBIS LINK' : 'SYSTEM MEDIUM'}</span><small>{session ? expired ? 'Authorization expired' : 'Package loaded' : 'Required to begin'}</small>
+        {session && <nav aria-label="Panel visibility"><button type="button" aria-pressed={showSettings} onClick={() => setShowSettings(!showSettings)}>Setup</button><button type="button" aria-pressed={showDiagnostics} onClick={() => setShowDiagnostics(!showDiagnostics)}>Diagnostics</button></nav>}
+      </div>
+    </header>
+    {session ? <div className={`v2-layout ${showSettings ? '' : 'v2-hide-settings'} ${showDiagnostics ? '' : 'v2-hide-diagnostics'}`}>
+      {showSettings && <SettingsPanel key={`${session.id}:${importRevision}`} session={session} disabled={busy} onSettings={(patch) => setSession({ ...session, settings: { ...session.settings, ...patch } })} onWorld={(action) => {
+        try { setSession(operateWorld(session, action)); setError(''); }
+        catch (cause) { setError(messageOf(cause)); }
+      }} />}
+      <section className="v2-panel v2-simulation" aria-label="Simulation">
+        <header className="v2-panel-heading"><h2>Simulation</h2><span>{session.launch.primaryAsset.name}</span></header>
+        <V2Transcript session={session} busy={busy} />
+        <div className="v2-transcript-tools"><button disabled={busy || !session.turns.length || expired || session.turns.at(-1)?.worldRevision !== session.world.revision} onClick={() => void generate(true)}>Reroll latest</button><button disabled={busy} onClick={download}>Export raw</button><button disabled={busy} onClick={() => fileInput.current?.click()}>Import raw</button>
+          <button className="v2-delete" disabled={busy || !session.turns.length} onClick={() => {
+            if (window.confirm('Remove the latest player/reply pair and its event from this V2 session?')) { setSession(deleteLastTurn(session)); setRejected(null); }
+          }}>Delete latest</button>
+          <input hidden ref={fileInput} type="file" accept=".json,application/json" aria-label="Import V2 session" onChange={(event) => { const file = event.target.files?.[0]; if (file) void importFile(file); }} />
+        </div>
+        {(error || storageError || expired) && <div className="v2-fault" role="alert">{storageError || error || 'Authorization expired. Export this session, launch the same record from Orbis, then import the V2 export.'}</div>}
+        <form className="v2-composer" onSubmit={(event) => { event.preventDefault(); void generate(); }}>
+          <textarea aria-label="Your next turn" placeholder="What do you do next?" value={session.draft} maxLength={16000} disabled={busy} onChange={(event) => setSession({ ...session, draft: event.target.value })} onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); void generate(); }
+          }} />
+          <div><small>Ctrl / Cmd + Enter to send</small>{busy ? <button type="button" onClick={() => controller.current?.abort()}>Cancel</button> : <button className="v2-send" disabled={!session.draft.trim() || expired}>Send</button>}</div>
+        </form>
+      </section>
+      {showDiagnostics && <V2DiagnosticsPanel session={session} rejected={rejected} />}
+    </div> : <section className="v2-panel v2-boot"><span className="v2-eyebrow">V2 / BOOT SEQUENCE</span><h2>{booting ? 'Reading simulation medium...' : 'Simulation package not found'}</h2><p role={booting ? 'status' : 'alert'}>{error || 'Waiting for the one-time Orbis launch package.'}</p><small>V1 and V2 sessions are separate. No V1 data has been loaded or modified.</small></section>}
+    <footer className="v2-status" aria-live="polite"><div>{(['context', 'generate', 'validate', 'commit'] as const).map((step) => <span key={step} className={phase === step ? 'is-active' : ''}><i />{step}</span>)}</div><span>{phase ? phase.toUpperCase() : session ? expired ? 'RELAUNCH REQUIRED' : 'READY' : 'HALTED'}</span><small>/v2</small></footer>
+  </main>;
+}

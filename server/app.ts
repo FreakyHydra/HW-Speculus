@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { clientLaunchPackage, parseOrbisLaunchPackage } from '../src/runtime/schema/launch-package.js';
 import type { OrbisLaunchPackage } from '../src/runtime/schema/types.js';
 import { generateThroughOrbis, type GenerationSession } from './providers/provider-service.js';
+import { createV2Router } from './v2/router.js';
 
 const generationRequestSchema = z.object({
   provider: z.literal('orbis'),
@@ -92,6 +93,7 @@ export function createApp(options: { production?: boolean } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '2mb' }));
+  app.use('/api/v2', createV2Router(options));
   app.get('/api/health', (_request, response) => response.json({ ok: true, service: 'speculus-api', launchBridge: true }));
 
   app.post('/api/launch', (request, response, next) => {

@@ -2,6 +2,16 @@
 
 Speculus uses a human-readable release version plus a 7-character Git build id shown in the terminal, for example `v0.2.0+5890c7b`.
 
+## Unreleased: isolated V2 foundation
+
+- Add a separately loaded `/v2` research terminal, runtime, context compiler,
+  explicit world/knowledge state, event ledger and versioned raw session transfer.
+- Add version-2 launch/claim/generation endpoints and independent per-launch
+  HTTP-only cookies. V1 code and behavior remain in the V1 entry.
+- Wire existing NovelAI bridge controls into V2 with output-only length presets.
+- Document incomplete semantic validation, memory, physics and rollout requirements
+  in `docs/v2-foundation.md`.
+
 ## [0.4.1] - 2026-09-10
 
 ### Fixed

@@ -1,0 +1,93 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { Router, type Request } from 'express';
+import { z } from 'zod';
+import { publicV2Package, v2LaunchSchema, type V2LaunchPackage } from '../../src/v2/contracts/launch.js';
+import { generateThroughOrbis, type GenerationSession } from '../providers/provider-service.js';
+
+const generationSchema = z.object({
+  launchId: z.string().min(8).max(200), provider: z.literal('orbis'),
+  prompt: z.string().min(1).max(500_000), model: z.string().min(1).max(200),
+  temperature: z.number().min(0).max(2), maxTokens: z.number().int().min(32).max(4096),
+  topK: z.number().int().min(0).max(1000), topP: z.number().min(0).max(1),
+  presencePenalty: z.number().min(-2).max(2), frequencyPenalty: z.number().min(-2).max(2),
+  stopSequences: z.array(z.string().min(1).max(200)).max(16),
+  continueToEndOfSentence: z.boolean(), reroll: z.boolean().optional(),
+});
+
+type V2Authorization = GenerationSession & { version: 2; model: string };
+const cookieName = (id: string) => `speculus_v2_${createHash('sha256').update(id).digest('hex').slice(0, 24)}`;
+const key = () => createHash('sha256').update(`speculus-v2-authorization:${process.env.SPECULUS_BRIDGE_SECRET}`).digest();
+
+function seal(value: V2Authorization): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key(), iv);
+  const data = Buffer.concat([cipher.update(JSON.stringify(value), 'utf8'), cipher.final()]);
+  return [iv, cipher.getAuthTag(), data].map((part) => part.toString('base64url')).join('.');
+}
+
+function authorization(request: Request, id: string): V2Authorization | null {
+  if (!process.env.SPECULUS_BRIDGE_SECRET) return null;
+  try {
+    const prefix = `${cookieName(id)}=`;
+    const value = (request.get('cookie') ?? '').split(';').map((part) => part.trim()).find((part) => part.startsWith(prefix));
+    if (!value) return null;
+    const [iv, tag, data] = value.slice(prefix.length).split('.').map((part) => Buffer.from(part, 'base64url'));
+    const decipher = createDecipheriv('aes-256-gcm', key(), iv);
+    decipher.setAuthTag(tag);
+    const session = JSON.parse(Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')) as V2Authorization;
+    return session.version === 2 && session.launchId === id && session.expiresAt > Date.now() ? session : null;
+  } catch { return null; }
+}
+
+export function createV2Router(options: { production?: boolean } = {}) {
+  const router = Router();
+  const deposits = new Map<string, V2LaunchPackage>();
+  router.use((_request, response, next) => {
+    response.setHeader('Cache-Control', 'no-store');
+    for (const [code, value] of deposits) if (value.expiresAt <= Date.now()) deposits.delete(code);
+    next();
+  });
+
+  router.post('/launch', (request, response, next) => {
+    try {
+      const expected = Buffer.from(process.env.SPECULUS_BRIDGE_SECRET ?? '');
+      const actual = Buffer.from(request.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '');
+      if (!expected.length || expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+        return response.status(401).json({ error: 'Orbis bridge authorization failed.' });
+      }
+      const value = v2LaunchSchema.parse(request.body);
+      const code = randomUUID();
+      deposits.set(code, value);
+      const origin = (process.env.SPECULUS_PUBLIC_ORIGIN || 'https://spec.thehowlingwhispers.com').replace(/\/$/, '');
+      response.status(201).json({ launchUrl: `${origin}/v2?launch=${encodeURIComponent(code)}`, expiresAt: value.expiresAt });
+    } catch (error) { next(error); }
+  });
+
+  router.get('/launch/:code', (request, response) => {
+    const value = deposits.get(String(request.params.code));
+    if (!value) return response.status(404).json({ error: 'V2 package is missing, expired, or already claimed. Launch again from Orbis.' });
+    deposits.delete(String(request.params.code));
+    const session: V2Authorization = {
+      version: 2, launchId: value.launchId, generationGrant: value.generationGrant, model: value.model,
+      source: { id: value.primaryAsset.id, type: value.primaryAsset.type, revision: value.primaryAsset.revision },
+      expiresAt: value.expiresAt,
+    };
+    const lifetime = Math.max(1, Math.floor((value.expiresAt - Date.now()) / 1000));
+    response.setHeader('Set-Cookie', `${cookieName(value.launchId)}=${seal(session)}; HttpOnly; SameSite=Strict; Path=/api/v2; Max-Age=${lifetime}${options.production ? '; Secure' : ''}`);
+    response.json({ package: publicV2Package(value) });
+  });
+
+  router.post('/generate', async (request, response, next) => {
+    try {
+      const origin = request.get('origin');
+      const expected = (process.env.SPECULUS_PUBLIC_ORIGIN || 'https://spec.thehowlingwhispers.com').replace(/\/$/, '');
+      if (options.production && origin !== expected) return response.status(403).json({ error: 'Invalid V2 request origin.' });
+      const body = generationSchema.parse(request.body);
+      const session = authorization(request, body.launchId);
+      if (!session) return response.status(401).json({ error: 'V2 authorization expired. Launch this record again from Orbis.' });
+      if (body.model !== session.model) return response.status(403).json({ error: 'Model does not match the authorized V2 launch.' });
+      response.json(await generateThroughOrbis(session, body));
+    } catch (error) { next(error); }
+  });
+  return router;
+}

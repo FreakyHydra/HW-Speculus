@@ -1,0 +1,77 @@
+// @vitest-environment node
+import type { AddressInfo } from 'node:net';
+import type { Server } from 'node:http';
+import express from 'express';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createApp } from '../server/app';
+import { v2Package } from './v2-fixtures';
+
+const servers: Server[] = [];
+async function listen(app: express.Express) {
+  const server = app.listen(0, '127.0.0.1'); servers.push(server);
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+}
+afterEach(async () => {
+  await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
+  vi.unstubAllEnvs();
+});
+const post = (base: string, path: string, body: unknown, headers: Record<string, string> = {}) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+const auth = { Authorization: 'Bearer test-v2-bridge-secret' };
+function env() { vi.stubEnv('SPECULUS_BRIDGE_SECRET', 'test-v2-bridge-secret'); vi.stubEnv('SPECULUS_PUBLIC_ORIGIN', 'https://spec.thehowlingwhispers.com'); }
+const requestBody = (launchId: string) => ({ launchId, provider: 'orbis', prompt: 'Render.', model: 'xialong-v1', temperature: 0.7, maxTokens: 1024, topK: 30, topP: 0.8, presencePenalty: 0.1, frequencyPenalty: 0.2, stopSequences: ['STOP'], continueToEndOfSentence: false });
+async function deposit(base: string, version: 1 | 2, launchId = `fixture-launch-${version}`) {
+  const body = { ...v2Package(), version, launchId };
+  const response = await post(base, version === 2 ? '/api/v2/launch' : '/api/launch', body, auth);
+  expect(response.status).toBe(201);
+  const result = await response.json() as { launchUrl: string };
+  return { code: new URL(result.launchUrl).searchParams.get('launch'), url: result.launchUrl };
+}
+
+describe('separate V1/V2 bridge authorization', () => {
+  it('keeps deposits, one-time claims, URLs and HTTP-only cookies separate', async () => {
+    env(); const base = await listen(createApp());
+    const one = await deposit(base, 1); const two = await deposit(base, 2);
+    expect(new URL(one.url).pathname).toBe('/'); expect(new URL(two.url).pathname).toBe('/v2');
+    expect((await fetch(`${base}/api/launch/${two.code}`)).status).toBe(404);
+    expect((await fetch(`${base}/api/v2/launch/${one.code}`)).status).toBe(404);
+    const v1 = await fetch(`${base}/api/launch/${one.code}`);
+    const v2 = await fetch(`${base}/api/v2/launch/${two.code}`);
+    expect(v1.status).toBe(200); expect(v2.status).toBe(200);
+    expect(v1.headers.get('set-cookie')).toMatch(/^speculus_session=/);
+    expect(v2.headers.get('set-cookie')).toMatch(/^speculus_v2_/);
+    expect(v2.headers.get('set-cookie')).toContain('HttpOnly; SameSite=Strict; Path=/api/v2');
+    expect(v2.headers.get('cache-control')).toBe('no-store');
+    expect(await v2.text()).not.toContain('test-only-opaque-generation-grant');
+    expect((await fetch(`${base}/api/v2/launch/${two.code}`)).status).toBe(404);
+    const v1cookie = v1.headers.get('set-cookie')!.split(';')[0];
+    const v2cookie = v2.headers.get('set-cookie')!.split(';')[0];
+    expect((await post(base, '/api/v2/generate', requestBody('fixture-launch-2'), { Cookie: v1cookie })).status).toBe(401);
+    expect((await post(base, '/api/generate', requestBody('fixture-launch-1'), { Cookie: v2cookie })).status).toBe(401);
+  });
+  it('rejects unsigned, expired and wrong-version deposits', async () => {
+    env(); const base = await listen(createApp());
+    expect((await post(base, '/api/v2/launch', v2Package())).status).toBe(401);
+    expect((await post(base, '/api/v2/launch', { ...v2Package(), version: 1 }, auth)).status).toBe(400);
+    expect((await post(base, '/api/v2/launch', { ...v2Package(), expiresAt: 1 }, auth)).status).toBe(400);
+    expect((await post(base, '/api/launch', v2Package(), auth)).status).not.toBe(201);
+  });
+  it('binds simultaneous V2 launches to their own cookie and forwards native settings', async () => {
+    env(); const gateway = express(); gateway.use(express.json());
+    const observed: Array<Record<string, unknown>> = [];
+    gateway.post('/generate', (req, res) => { observed.push(req.body); res.json({ text: '"Hello."', finishReason: 'stop' }); });
+    vi.stubEnv('ORBIS_GENERATION_API_URL', `${await listen(gateway)}/generate`);
+    const base = await listen(createApp());
+    const one = await deposit(base, 2, 'separate-launch-one'); const two = await deposit(base, 2, 'separate-launch-two');
+    const response1 = await fetch(`${base}/api/v2/launch/${one.code}`); const response2 = await fetch(`${base}/api/v2/launch/${two.code}`);
+    const cookie1 = response1.headers.get('set-cookie')!.split(';')[0]; const cookie2 = response2.headers.get('set-cookie')!.split(';')[0];
+    expect(cookie1.split('=')[0]).not.toBe(cookie2.split('=')[0]);
+    expect((await post(base, '/api/v2/generate', requestBody('separate-launch-two'), { Cookie: cookie1 })).status).toBe(401);
+    const cookies = `${cookie1}; ${cookie2}`;
+    for (const id of ['separate-launch-one', 'separate-launch-two']) expect((await post(base, '/api/v2/generate', requestBody(id), { Cookie: cookies })).status).toBe(200);
+    expect(observed.map((value) => value.launchId)).toEqual(['separate-launch-one', 'separate-launch-two']);
+    expect(observed[0]).toMatchObject({ maxTokens: 1024, temperature: 0.7, topK: 30, topP: 0.8, presencePenalty: 0.1, frequencyPenalty: 0.2, stopSequences: ['STOP'], continueToEndOfSentence: false });
+    expect((await post(base, '/api/v2/generate', { ...requestBody('separate-launch-one'), model: 'glm-4-6' }, { Cookie: cookies })).status).toBe(403);
+    expect(observed).toHaveLength(2);
+  });
+});
