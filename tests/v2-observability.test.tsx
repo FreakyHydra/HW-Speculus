@@ -13,9 +13,9 @@ const provider: ProviderAdapter = {
   generate: vi.fn(async () => ({
     text: '*She looks up.* "Hello." [Careful.]',
     metadata: {
-      provider: 'mock', model: 'xialong-v1', endpoint: 'mock://v2', durationMs: 42,
+      provider: 'mock' as const, model: 'xialong-v1', endpoint: 'mock://v2', durationMs: 42,
       requestId: 'request-123', inputTokensEstimate: 321, requestedMaxTokens: 512,
-      completionStatus: 'completed', finishReason: 'stop',
+      completionStatus: 'completed' as const, finishReason: 'stop',
     },
   })),
 };
