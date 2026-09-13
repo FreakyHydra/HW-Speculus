@@ -75,11 +75,13 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
   if (options.signal?.aborted) throw new Error('Generation cancelled. No turn or state was committed.');
   options.onPhase?.('validate');
   const rawReply = result.text.trim();
-  const normalizedReply = normalizeV2RoleplayFormat(rawReply);
-  const issues = validateV2Reply(normalizedReply, session.launch.persona.name);
+  const rawIssues = validateV2Reply(rawReply, session.launch.persona.name);
+  const canNormalize = result.metadata.completionStatus !== 'max_tokens' && rawIssues.length === 0;
+  const normalizedReply = canNormalize ? normalizeV2RoleplayFormat(rawReply) : rawReply;
+  const issues = [...new Set([...rawIssues, ...validateV2Reply(normalizedReply, session.launch.persona.name)])];
   const warnings = ['Semantic canon validation and automatic action resolution are not implemented yet. Prose cannot commit physical state.'];
-  if (normalizedReply !== rawReply) warnings.push('Roleplay formatting was normalized before commit so narration/action, dialogue and inner voice remain structurally distinct.');
-  if (result.metadata.completionStatus === 'max_tokens') warnings.push('The provider reached the output limit. The reply is preserved without local truncation. Increase the budget and reroll if needed.');
+  if (canNormalize && normalizedReply !== rawReply) warnings.push('Roleplay formatting was normalized before commit so narration/action, dialogue and inner voice remain structurally distinct.');
+  if (result.metadata.completionStatus === 'max_tokens') warnings.push('The provider reached the output limit. The reply is preserved without local truncation or formatting repair. Increase the budget and reroll if needed.');
   if (compiled.omitted.length) warnings.push('Some history/canon was omitted. Inspect the Context tab for the exact list.');
   const diagnostics: V2Diagnostics = {
     prompt: compiled.prompt, included: compiled.included, omitted: compiled.omitted,
