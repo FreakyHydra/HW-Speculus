@@ -22,6 +22,7 @@ export function compileV2Context(session: V2Session, player = '', mode: V2Render
     'Do not invent named places, teleport actors, advance the clock, close the scene, or alter engine state.',
     'Use only information available to the player persona from authored persona data, current scene state, current perception and the visible recent exchange.',
     'Write only in-world roleplay: dialogue in double quotes, action/narration in single asterisks, inner voice in square brackets.',
+    'Use real roleplay punctuation and real line breaks. Do not serialize the response as JSON or escape its punctuation.',
     `Begin directly with ${launch.persona.name}'s action, dialogue, or inner voice. Do not prefix a speaker name, role label, heading, explanation, or menu.`,
     'Stop when the player persona turn is complete. Do not generate the other side of the exchange.',
     `The output allowance is ${settings.maxTokens} tokens. Do not pad the draft to consume the allowance.`,
@@ -34,6 +35,7 @@ export function compileV2Context(session: V2Session, player = '', mode: V2Render
     'Character knowledge is limited to self-description, explicit known facts and current perception. Do not use private inner thoughts as observable evidence.',
     'Authored world and character rules govern behavior. Apply consistency and causality without adding a universal moral personality.',
     'Write only in-world roleplay: dialogue in double quotes, action/narration in single asterisks, inner voice in square brackets.',
+    'Use real roleplay punctuation and real line breaks. Do not serialize the response as JSON or escape its punctuation.',
     'Begin the response directly with the authorized subject\'s in-world action, dialogue, or inner voice. Do not prefix it with a speaker name, role label, or response heading.',
     'Do not output engine status, rules, state patches, analysis, headings, menus or a request for the player to choose their next move.',
     skippingPersona
@@ -67,11 +69,14 @@ export function compileV2Context(session: V2Session, player = '', mode: V2Render
     throw new Error('Essential scene/state and input exceed the V2 context allowance. Nothing was cut or sent. Shorten the setup/input before retrying.');
   }
 
-  const recent = session.turns.slice(-4).map((turn) => section('RECENT EXCHANGE / NOT ENGINE AUTHORITY', {
-    playerTurn: turn.player === SKIPPED_PERSONA_TURN ? 'skipped by operator' : 'provided',
-    player: turn.player === SKIPPED_PERSONA_TURN ? null : turn.player,
-    response: turn.reply,
-  }));
+  // Recent dialogue is intentionally kept as plain roleplay text. Serializing it
+  // as JSON teaches the model to imitate escaped quotes/newlines in later turns.
+  const recent = session.turns.slice(-4).map((turn) => '\n[RECENT EXCHANGE / NOT ENGINE AUTHORITY]\n'
+    + (turn.player === SKIPPED_PERSONA_TURN
+      ? '[PLAYER TURN]\n(skipped by operator)\n'
+      : `[PLAYER TURN]\n${turn.player}\n`)
+    + `[AUTHORIZED SUBJECT RESPONSE]\n${turn.reply}\n`
+    + '[END RECENT EXCHANGE]\n');
   let history = '';
   for (let i = recent.length - 1; i >= 0; i -= 1) {
     if ((prompt + influence + recent[i] + history + input).length > CONTEXT_CHARACTER_BUDGET) {
