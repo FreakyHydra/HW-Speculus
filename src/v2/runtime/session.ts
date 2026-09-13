@@ -18,6 +18,10 @@ export const settingsSchema = z.object({
   dialogueColor: colorSchema.default(DEFAULT_TEXT_COLORS.dialogueColor),
   thoughtColor: colorSchema.default(DEFAULT_TEXT_COLORS.thoughtColor),
 });
+const generationSettingsSchema = settingsSchema.pick({
+  output: true, maxTokens: true, temperature: true, topK: true, topP: true,
+  presencePenalty: true, frequencyPenalty: true, stopSequences: true, continueToEndOfSentence: true,
+});
 export type V2Settings = z.infer<typeof settingsSchema>;
 export const diagnosticsSchema = z.object({
   prompt: z.string().max(500_000), estimatedInputTokens: z.number(), outputBudget: z.number(),
@@ -26,6 +30,7 @@ export const diagnosticsSchema = z.object({
   completionStatus: z.string(), worldRevision: z.number().int(),
   providerKind: z.string().optional(), providerEndpoint: z.string().optional(), requestId: z.string().optional(),
   finishReason: z.string().optional(), requestedMaxTokens: z.number().optional(), providerInputTokensEstimate: z.number().optional(),
+  generationSettings: generationSettingsSchema.optional(),
 });
 export type V2Diagnostics = z.infer<typeof diagnosticsSchema>;
 export const turnSchema = z.object({
