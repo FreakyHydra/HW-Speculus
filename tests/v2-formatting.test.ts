@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeV2RoleplayFormat } from '../src/v2/runtime/engine';
+import { decodeV2SerializedRoleplayArtifacts, normalizeV2RoleplayFormat } from '../src/v2/runtime/engine';
 
 describe('V2 roleplay formatting', () => {
   it('closes narration around dialogue when the model emits only a leading action marker', () => {
@@ -15,5 +15,15 @@ describe('V2 roleplay formatting', () => {
   it('does not invent action markers between adjacent dialogue spans', () => {
     expect(normalizeV2RoleplayFormat('"No." "Really?"'))
       .toBe('"No." "Really?"');
+  });
+
+  it('decodes serialized roleplay escapes only when the completion strongly matches that failure mode', () => {
+    const leaked = String.raw`*Pip looks up.*\n\n\*\"I knew you'd come.\"\* Pip says softly.`;
+    const decoded = decodeV2SerializedRoleplayArtifacts(leaked);
+    expect(decoded).toBe('*Pip looks up.*\n\n*"I knew you\'d come."* Pip says softly.');
+    expect(normalizeV2RoleplayFormat(decoded))
+      .toBe('*Pip looks up.*\n\n"I knew you\'d come." *Pip says softly.*');
+    expect(decodeV2SerializedRoleplayArtifacts(String.raw`The path is C:\new-folder.`))
+      .toBe(String.raw`The path is C:\new-folder.`);
   });
 });
