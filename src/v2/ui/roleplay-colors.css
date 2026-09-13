@@ -1,0 +1,7 @@
+.spec-v2 .v2-action { color: var(--v2-action-color, #d6d1c3); font-style: italic; }
+.spec-v2 .v2-dialogue { color: var(--v2-dialogue-color, #f3e7ad); }
+.spec-v2 .v2-thought { color: var(--v2-thought-color, #a9c7d8); }
+.spec-v2 .v2-color-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; color: var(--v2-teal); font-size: 11px; }
+.spec-v2 .v2-color-control { display: flex; align-items: center; gap: 8px; color: var(--v2-muted); }
+.spec-v2 .v2-color-control input[type='color'] { width: 42px; height: 30px; padding: 2px; border: 1px solid var(--v2-line); border-radius: 2px; background: #0f1915; cursor: pointer; }
+.spec-v2 .v2-color-control code { min-width: 68px; font: inherit; color: var(--v2-muted); text-transform: uppercase; }
