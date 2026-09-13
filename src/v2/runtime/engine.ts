@@ -19,8 +19,30 @@ function normalizeActionChunk(value: string) {
   return core ? `${leading}*${core}*${trailing}` : value;
 }
 
+export function decodeV2SerializedRoleplayArtifacts(text: string) {
+  const escapedNewlines = text.match(/\\+n/g)?.length ?? 0;
+  const escapedMarkup = (text.match(/\\+"/g)?.length ?? 0)
+    + (text.match(/\\+\*/g)?.length ?? 0)
+    + (text.match(/\\+\[/g)?.length ?? 0)
+    + (text.match(/\\+\]/g)?.length ?? 0);
+  // Only decode when the completion strongly resembles a serialized roleplay
+  // string. This avoids treating an isolated literal backslash as formatting.
+  if (escapedNewlines === 0 || escapedMarkup < 2) return text;
+  return text
+    .replace(/\\+r\\+n/g, '\n')
+    .replace(/\\+n/g, '\n')
+    .replace(/\\+"/g, '"')
+    .replace(/\\+\*/g, '*')
+    .replace(/\\+\[/g, '[')
+    .replace(/\\+\]/g, ']');
+}
+
 export function normalizeV2RoleplayFormat(text: string) {
-  return text.trim().split(/(\[[^\]\n]+\]|"[^"\n]*"|“[^”\n]*”)/g).map((part) => {
+  // A quoted span wrapped in asterisks is dialogue, not narration. Models can
+  // occasionally emit Markdown-style *"dialogue"* even though V2 uses stars
+  // exclusively for actions.
+  const cleaned = text.trim().replace(/\*("[^"\n]*"|“[^”\n]*”)\*/g, '$1');
+  return cleaned.split(/(\[[^\]\n]+\]|"[^"\n]*"|“[^”\n]*”)/g).map((part) => {
     if (!part) return '';
     if ((part.startsWith('[') && part.endsWith(']'))
       || (part.startsWith('"') && part.endsWith('"'))
@@ -78,13 +100,16 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
   options.onPhase?.('validate');
   const rawReply = result.text.trim();
   const rawIssues = validateV2Reply(rawReply, session.launch.persona.name);
-  const canNormalize = result.metadata.completionStatus !== 'max_tokens' && rawIssues.length === 0;
-  const normalizedReply = canNormalize ? normalizeV2RoleplayFormat(rawReply) : rawReply;
-  const issues = [...new Set([...rawIssues, ...validateV2Reply(normalizedReply, session.launch.persona.name)])];
+  const decodedReply = decodeV2SerializedRoleplayArtifacts(rawReply);
+  const decodedIssues = validateV2Reply(decodedReply, session.launch.persona.name);
+  const canNormalize = result.metadata.completionStatus !== 'max_tokens' && rawIssues.length === 0 && decodedIssues.length === 0;
+  const normalizedReply = canNormalize ? normalizeV2RoleplayFormat(decodedReply) : decodedReply;
+  const issues = [...new Set([...rawIssues, ...decodedIssues, ...validateV2Reply(normalizedReply, session.launch.persona.name)])];
   const warnings = ['Semantic canon validation and automatic action resolution are not implemented yet. Prose cannot commit physical state.'];
   if (skipPersona) warnings.push('The player persona turn was explicitly skipped. The renderer was forbidden from inventing a player action or decision.');
-  if (canNormalize && normalizedReply !== rawReply) warnings.push('Roleplay formatting was normalized before commit so narration/action, dialogue and inner voice remain structurally distinct.');
-  if (result.metadata.completionStatus === 'max_tokens') warnings.push('The provider reached the output limit. The reply is preserved without local truncation or formatting repair. Increase the budget and reroll if needed.');
+  if (decodedReply !== rawReply) warnings.push('Serialized roleplay escape sequences were decoded before commit.');
+  if (canNormalize && normalizedReply !== decodedReply) warnings.push('Roleplay formatting was normalized before commit so narration/action, dialogue and inner voice remain structurally distinct.');
+  if (result.metadata.completionStatus === 'max_tokens') warnings.push('The provider reached the output limit. The reply was not locally truncated or structurally completed. Increase the budget and reroll if needed.');
   if (compiled.omitted.length) warnings.push('Some history/canon was omitted. Inspect the Context tab for the exact list.');
   const diagnostics: V2Diagnostics = {
     prompt: compiled.prompt, included: compiled.included, omitted: compiled.omitted,
