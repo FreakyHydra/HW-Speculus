@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { OUTPUT_PRESETS, type V2Session, type V2Settings } from '../runtime/session';
+import { DEFAULT_TEXT_COLORS, OUTPUT_PRESETS, type V2Session, type V2Settings } from '../runtime/session';
 import { assetsFor, type WorldAction } from '../runtime/world';
 
 export function SettingsPanel({ session, disabled, onSettings, onWorld }: {
@@ -19,6 +19,8 @@ export function SettingsPanel({ session, disabled, onSettings, onWorld }: {
       const value = event.target.valueAsNumber;
       if (Number.isFinite(value) && value >= min && value <= max && (step !== 1 || Number.isInteger(value))) onSettings({ [key]: value });
     }} /></label>;
+  const color = (label: string, key: keyof Pick<V2Settings, 'actionColor' | 'dialogueColor' | 'thoughtColor'>) =>
+    <label className="v2-color-field"><span>{label}</span><span className="v2-color-control"><input type="color" value={settings[key]} onChange={(event) => onSettings({ [key]: event.target.value })} /><code>{settings[key]}</code></span></label>;
 
   return <aside className="v2-panel v2-settings" aria-label="Simulation settings"><fieldset disabled={disabled}>
     <section><h2>Session</h2><dl className="v2-fields">
@@ -53,6 +55,12 @@ export function SettingsPanel({ session, disabled, onSettings, onWorld }: {
       <label className="v2-field"><span>Known fact for {launch.character?.name ?? launch.persona.name}</span><textarea rows={2} maxLength={4000} value={fact} onChange={(event) => setFact(event.target.value)} /></label>
       <button type="button" disabled={!fact.trim()} onClick={() => { onWorld({ type: 'record-knowledge', actorId, fact }); setFact(''); }}>Record observed fact</button>
     </details></section>
-    <section><h2>Display</h2><label className="v2-check v2-toggle">CRT effects<input type="checkbox" role="switch" checked={settings.crtEffects} onChange={(event) => onSettings({ crtEffects: event.target.checked })} /></label></section>
+    <section><h2>Display</h2>
+      <label className="v2-check v2-toggle">CRT effects<input type="checkbox" role="switch" checked={settings.crtEffects} onChange={(event) => onSettings({ crtEffects: event.target.checked })} /></label>
+      <details className="v2-native"><summary>Roleplay text colors</summary>
+        {color('Narration / action', 'actionColor')}{color('Dialogue', 'dialogueColor')}{color('Inner voice', 'thoughtColor')}
+        <button type="button" onClick={() => onSettings(DEFAULT_TEXT_COLORS)}>Reset text colors</button>
+      </details>
+    </section>
   </fieldset></aside>;
 }
