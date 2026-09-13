@@ -1,11 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import type { V2Session } from '../runtime/session';
 
 function RoleplayText({ text }: { text: string }) {
-  return <>{text.split(/(\*[^*]+\*|\[[^\]]+\])/g).map((part, index) =>
-    part.startsWith('*') && part.endsWith('*') ? <em key={index}>{part.slice(1, -1)}</em>
+  return <>{text.split(/(\*[^*]+\*|\[[^\]]+\]|"[^"]+"|“[^”]+”)/g).map((part, index) =>
+    part.startsWith('*') && part.endsWith('*') ? <em className="v2-action" key={index}>{part.slice(1, -1)}</em>
       : part.startsWith('[') && part.endsWith(']') ? <span className="v2-thought" key={index}>{part}</span>
-        : <span key={index}>{part}</span>)}</>;
+        : ((part.startsWith('"') && part.endsWith('"')) || (part.startsWith('“') && part.endsWith('”')))
+          ? <span className="v2-dialogue" key={index}>{part}</span>
+          : <span key={index}>{part}</span>)}</>;
 }
 
 export function V2Transcript({ session, busy }: { session: V2Session; busy: boolean }) {
@@ -15,7 +17,12 @@ export function V2Transcript({ session, busy }: { session: V2Session; busy: bool
     if (follow.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight;
   }, [session.turns, busy]);
   const subject = session.launch.character?.name ?? 'Simulation Narrator';
-  return <div className="v2-transcript" ref={scroll} role="log" aria-label="Roleplay transcript" aria-live="polite" onScroll={() => {
+  const textColors = {
+    '--v2-action-color': session.settings.actionColor,
+    '--v2-dialogue-color': session.settings.dialogueColor,
+    '--v2-thought-color': session.settings.thoughtColor,
+  } as CSSProperties;
+  return <div className="v2-transcript" style={textColors} ref={scroll} role="log" aria-label="Roleplay transcript" aria-live="polite" onScroll={() => {
     const node = scroll.current;
     if (node) follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 100;
   }}>
