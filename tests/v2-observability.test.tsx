@@ -35,9 +35,10 @@ describe('V2 observability and display controls', () => {
   it('renders action, dialogue and inner voice as separate styled spans', async () => {
     const value = await generatedSession();
     const { container } = render(<V2Transcript session={value} busy={false} />);
-    expect(container.querySelector('.v2-action')?.textContent).toBe('She looks up.');
-    expect(container.querySelector('.v2-dialogue')?.textContent).toBe('"Hello."');
-    expect(container.querySelector('.v2-thought')?.textContent).toBe('[Careful.]');
+    const generated = container.querySelector('.v2-exchange .v2-message:not(.v2-player)') as HTMLElement;
+    expect(generated.querySelector('.v2-action')?.textContent).toBe('She looks up.');
+    expect(generated.querySelector('.v2-dialogue')?.textContent).toBe('"Hello."');
+    expect(generated.querySelector('.v2-thought')?.textContent).toBe('[Careful.]');
     const transcript = container.querySelector('.v2-transcript') as HTMLElement;
     expect(transcript.style.getPropertyValue('--v2-action-color')).toBe(DEFAULT_TEXT_COLORS.actionColor);
     expect(transcript.style.getPropertyValue('--v2-dialogue-color')).toBe(DEFAULT_TEXT_COLORS.dialogueColor);
