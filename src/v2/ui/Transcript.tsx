@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import type { V2Session } from '../runtime/session';
+import { isSkippedPersonaTurn } from '../runtime/turn-control';
 
 function RoleplayText({ text }: { text: string }) {
   return <>{text.split(/(\*[^*]+\*|\[[^\]]+\]|"[^"]+"|“[^”]+”)/g).map((part, index) =>
@@ -37,7 +38,9 @@ export function V2Transcript({ session, busy }: { session: V2Session; busy: bool
       <small>V2 foundation: engine state is explicit. Narration cannot move actors or advance time.</small>
     </div>}
     {session.turns.map((turn, index) => <div key={turn.id} className="v2-exchange">
-      <article className="v2-message v2-player"><header>Player / {session.launch.persona.name}<span>Turn {String(index + 1).padStart(3, '0')}</span></header><div className="v2-prose"><RoleplayText text={turn.player} /></div></article>
+      {isSkippedPersonaTurn(turn.player)
+        ? <article className="v2-message v2-player v2-skipped-turn"><header>Player / {session.launch.persona.name}<span>Turn {String(index + 1).padStart(3, '0')}</span></header><div className="v2-skip-note">Persona turn skipped by operator</div></article>
+        : <article className="v2-message v2-player"><header>Player / {session.launch.persona.name}<span>Turn {String(index + 1).padStart(3, '0')}</span></header><div className="v2-prose"><RoleplayText text={turn.player} /></div></article>}
       <article className="v2-message"><header>{subject}<span>State r{turn.worldRevision}</span></header><div className="v2-prose"><RoleplayText text={turn.reply} /></div></article>
     </div>)}
     {busy && <p className="v2-working">Generation in progress. No new state committed.</p>}

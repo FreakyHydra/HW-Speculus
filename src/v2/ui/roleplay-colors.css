@@ -9,3 +9,8 @@
 .spec-v2 .v2-diagnostic-stats span { border: 1px solid var(--v2-line); background: #0f1915; padding: 6px 7px; color: var(--v2-muted); font-size: 10px; overflow-wrap: anywhere; }
 .spec-v2 .v2-diagnostic-actions { display: flex; justify-content: flex-end; position: sticky; bottom: -18px; margin: 18px -18px -18px; padding: 10px 18px; border-top: 1px solid var(--v2-line); background: #101a16f2; }
 .spec-v2 .v2-diagnostic-actions button { min-height: 30px; padding: 5px 9px; font-size: 10px; }
+.spec-v2 .v2-status .is-complete { color: var(--v2-teal); }
+.spec-v2 .v2-status .is-complete i { background: #587f71; box-shadow: 0 0 5px #7dba9f55; }
+.spec-v2 .v2-status .is-active i { animation: v2-phase-pulse .8s steps(2, end) infinite; }
+.spec-v2 .v2-skip-note { border-left: 2px solid var(--v2-line); padding: 5px 9px; color: var(--v2-muted); font: 11px/1.5 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; text-transform: uppercase; letter-spacing: .06em; }
+@keyframes v2-phase-pulse { 50% { opacity: .35; } }

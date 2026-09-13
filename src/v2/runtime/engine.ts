@@ -1,6 +1,7 @@
 import type { ProviderAdapter } from '../../runtime/providers/types';
 import { compileV2Context } from './context';
 import { settingsSchema, type V2Diagnostics, type V2Session, type V2Turn } from './session';
+import { SKIPPED_PERSONA_TURN } from './turn-control';
 
 export type EnginePhase = 'context' | 'generate' | 'validate' | 'commit';
 export class V2DraftRejected extends Error {
@@ -46,7 +47,7 @@ export function validateV2Reply(text: string, playerName = '') {
 }
 
 export async function generateV2Turn(session: V2Session, provider: ProviderAdapter, options: {
-  reroll?: boolean; signal?: AbortSignal; onPhase?: (phase: EnginePhase) => void; now?: number;
+  reroll?: boolean; skipPersona?: boolean; signal?: AbortSignal; onPhase?: (phase: EnginePhase) => void; now?: number;
 } = {}): Promise<V2Session> {
   const settings = settingsSchema.parse(session.settings);
   if (options.signal?.aborted) throw new Error('Generation cancelled. No provider call was made.');
@@ -55,11 +56,12 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
   if (options.reroll && (!last || last.worldRevision !== session.world.revision)) {
     throw new Error('Reroll requires the latest turn and its unchanged world state.');
   }
-  const player = (options.reroll ? last!.player : session.draft).trim();
-  if (!player || player.length > 16000) throw new Error('Write a player turn between 1 and 16000 characters.');
+  const skipPersona = options.reroll ? last!.player === SKIPPED_PERSONA_TURN : options.skipPersona === true;
+  const player = skipPersona ? SKIPPED_PERSONA_TURN : (options.reroll ? last!.player : session.draft).trim();
+  if (!skipPersona && (!player || player.length > 16000)) throw new Error('Write a player turn between 1 and 16000 characters.');
   const base = options.reroll ? { ...session, turns: session.turns.slice(0, -1) } : session;
   options.onPhase?.('context');
-  const compiled = compileV2Context(base, player);
+  const compiled = compileV2Context(base, player, skipPersona ? 'skip-persona' : 'normal');
   options.onPhase?.('generate');
   const result = await provider.generate({
     prompt: compiled.prompt, model: session.launch.model,
@@ -80,6 +82,7 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
   const normalizedReply = canNormalize ? normalizeV2RoleplayFormat(rawReply) : rawReply;
   const issues = [...new Set([...rawIssues, ...validateV2Reply(normalizedReply, session.launch.persona.name)])];
   const warnings = ['Semantic canon validation and automatic action resolution are not implemented yet. Prose cannot commit physical state.'];
+  if (skipPersona) warnings.push('The player persona turn was explicitly skipped. The renderer was forbidden from inventing a player action or decision.');
   if (canNormalize && normalizedReply !== rawReply) warnings.push('Roleplay formatting was normalized before commit so narration/action, dialogue and inner voice remain structurally distinct.');
   if (result.metadata.completionStatus === 'max_tokens') warnings.push('The provider reached the output limit. The reply is preserved without local truncation or formatting repair. Increase the budget and reroll if needed.');
   if (compiled.omitted.length) warnings.push('Some history/canon was omitted. Inspect the Context tab for the exact list.');
@@ -104,10 +107,10 @@ export async function generateV2Turn(session: V2Session, provider: ProviderAdapt
   const turn: V2Turn = { id, player, reply: normalizedReply, createdAt: options.reroll ? last!.createdAt : at, worldRevision: session.world.revision, diagnostics };
   options.onPhase?.('commit');
   return {
-    ...session, draft: options.reroll ? session.draft : '', turns: [...base.turns, turn],
+    ...session, draft: options.reroll || skipPersona ? session.draft : '', turns: [...base.turns, turn],
     nextTurn: session.nextTurn + (options.reroll ? 0 : 1),
     events: options.reroll
-      ? session.events.map((event) => event.id === id ? { ...event, label: 'Reply rerolled', at } : event)
-      : [...session.events, { id, kind: 'turn', label: 'Reply committed', worldRevision: session.world.revision, at }],
+      ? session.events.map((event) => event.id === id ? { ...event, label: skipPersona ? 'Reply rerolled / persona skipped' : 'Reply rerolled', at } : event)
+      : [...session.events, { id, kind: 'turn', label: skipPersona ? 'Reply committed / persona skipped' : 'Reply committed', worldRevision: session.world.revision, at }],
   };
 }

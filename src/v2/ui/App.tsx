@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { parseV2ClientPackage, type V2ClientPackage } from '../contracts/launch';
 import { V2BrowserProvider } from '../providers/browser';
 import { generateV2Turn, V2DraftRejected, type EnginePhase } from '../runtime/engine';
+import { generateV2PersonaDraft } from '../runtime/persona-draft';
 import { createV2Session, deleteLastTurn, operateWorld, type V2Diagnostics, type V2Session } from '../runtime/session';
 import { exportV2Session, importV2Session, loadV2Session, MAX_V2_FILE_BYTES, saveV2Session } from '../storage/session';
 import { V2DiagnosticsPanel } from './Diagnostics';
 import { SettingsPanel } from './SettingsPanel';
 import { V2Transcript } from './Transcript';
+
+const PIPELINE_STEPS = ['context', 'generate', 'validate', 'commit'] as const;
 
 // React StrictMode replays mount effects. A one-time launch must be claimed once.
 let claim: { code: string; promise: Promise<V2ClientPackage> } | null = null;
@@ -28,6 +31,7 @@ export function V2App() {
   const [error, setError] = useState('');
   const [storageError, setStorageError] = useState('');
   const [phase, setPhase] = useState<EnginePhase | null>(null);
+  const [phaseSeen, setPhaseSeen] = useState<EnginePhase[]>([]);
   const [importing, setImporting] = useState(false);
   const importLock = useRef(false);
   const [importRevision, setImportRevision] = useState(0);
@@ -36,6 +40,11 @@ export function V2App() {
   const [showDiagnostics, setShowDiagnostics] = useState(true);
   const controller = useRef<AbortController | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  const notePhase = (next: EnginePhase) => {
+    setPhase(next);
+    setPhaseSeen((current) => current.includes(next) ? current : [...current, next]);
+  };
 
   useEffect(() => {
     let active = true;
@@ -61,18 +70,33 @@ export function V2App() {
     catch { setStorageError('Tab storage is unavailable or full. Export your session now to preserve it.'); }
   }, [session]);
 
-  const generate = async (reroll = false) => {
+  const generate = async (reroll = false, skipPersona = false) => {
     if (!session || controller.current || importLock.current) return;
     const active = new AbortController();
-    controller.current = active; setError(''); setRejected(null);
+    controller.current = active; setError(''); setRejected(null); setPhaseSeen([]);
     try {
       const next = await generateV2Turn(session, new V2BrowserProvider(session.launch.launchId), {
-        reroll, signal: active.signal, onPhase: setPhase,
+        reroll, skipPersona, signal: active.signal, onPhase: notePhase,
       });
       if (!active.signal.aborted) setSession(next);
     } catch (cause) {
       setError(active.signal.aborted ? 'Cancelled. Your draft and committed state are unchanged.' : messageOf(cause));
       if (cause instanceof V2DraftRejected) setRejected(cause.diagnostics);
+    } finally { controller.current = null; setPhase(null); }
+  };
+
+  const impersonate = async () => {
+    if (!session || controller.current || importLock.current) return;
+    if (session.draft.trim() && !window.confirm('Replace the current player draft with an AI-generated impersonation of the player persona?')) return;
+    const active = new AbortController();
+    controller.current = active; setError(''); setRejected(null); setPhaseSeen([]);
+    try {
+      const draft = await generateV2PersonaDraft(session, new V2BrowserProvider(session.launch.launchId), {
+        signal: active.signal, onPhase: notePhase,
+      });
+      if (!active.signal.aborted) setSession({ ...session, draft });
+    } catch (cause) {
+      setError(active.signal.aborted ? 'Cancelled. The player composer was unchanged.' : messageOf(cause));
     } finally { controller.current = null; setPhase(null); }
   };
 
@@ -114,7 +138,11 @@ export function V2App() {
       <section className="v2-panel v2-simulation" aria-label="Simulation">
         <header className="v2-panel-heading"><h2>Simulation</h2><span>{session.launch.primaryAsset.name}</span></header>
         <V2Transcript session={session} busy={busy} />
-        <div className="v2-transcript-tools"><button disabled={busy || !session.turns.length || expired || session.turns.at(-1)?.worldRevision !== session.world.revision} onClick={() => void generate(true)}>Reroll latest</button><button disabled={busy} onClick={download}>Export raw</button><button disabled={busy} onClick={() => fileInput.current?.click()}>Import raw</button>
+        <div className="v2-transcript-tools">
+          <button disabled={busy || !session.turns.length || expired || session.turns.at(-1)?.worldRevision !== session.world.revision} onClick={() => void generate(true)}>Reroll latest</button>
+          <button disabled={busy || expired} onClick={() => void generate(false, true)}>Skip persona turn</button>
+          <button disabled={busy || expired} onClick={() => void impersonate()}>Impersonate</button>
+          <button disabled={busy} onClick={download}>Export raw</button><button disabled={busy} onClick={() => fileInput.current?.click()}>Import raw</button>
           <button className="v2-delete" disabled={busy || !session.turns.length} onClick={() => {
             if (window.confirm('Remove the latest player/reply pair and its event from this V2 session?')) { setSession(deleteLastTurn(session)); setRejected(null); }
           }}>Delete latest</button>
@@ -130,6 +158,6 @@ export function V2App() {
       </section>
       {showDiagnostics && <V2DiagnosticsPanel session={session} rejected={rejected} />}
     </div> : <section className="v2-panel v2-boot"><span className="v2-eyebrow">V2 / BOOT SEQUENCE</span><h2>{booting ? 'Reading simulation medium...' : 'Simulation package not found'}</h2><p role={booting ? 'status' : 'alert'}>{error || 'Waiting for the one-time Orbis launch package.'}</p><small>V1 and V2 sessions are separate. No V1 data has been loaded or modified.</small></section>}
-    <footer className="v2-status" aria-live="polite"><div>{(['context', 'generate', 'validate', 'commit'] as const).map((step) => <span key={step} className={phase === step ? 'is-active' : ''}><i />{step}</span>)}</div><span>{phase ? phase.toUpperCase() : session ? expired ? 'RELAUNCH REQUIRED' : 'READY' : 'HALTED'}</span><small>/v2</small></footer>
+    <footer className="v2-status" aria-live="polite"><div>{PIPELINE_STEPS.map((step) => <span key={step} className={phase === step ? 'is-active' : phaseSeen.includes(step) ? 'is-complete' : ''}><i />{step}</span>)}</div><span>{phase ? phase.toUpperCase() : error || storageError ? 'FAULT' : session ? expired ? 'RELAUNCH REQUIRED' : 'READY' : 'HALTED'}</span><small>/v2</small></footer>
   </main>;
 }

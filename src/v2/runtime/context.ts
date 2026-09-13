@@ -1,16 +1,31 @@
 import type { V2Session } from './session';
+import { SKIPPED_PERSONA_TURN } from './turn-control';
 import { assetsFor, perceptionFor } from './world';
 
 // A conservative, explicitly estimated prompt allowance, independent of output
 // presets. Exact model tokenization and semantic long-term recall are later work.
 export const CONTEXT_CHARACTER_BUDGET = 28_000;
+export type V2RenderMode = 'normal' | 'skip-persona' | 'impersonate-persona';
 const section = (title: string, value: unknown) => `\n[${title}]\n${typeof value === 'string' ? value : JSON.stringify(value)}\n`;
 
-export function compileV2Context(session: V2Session, player: string) {
+export function compileV2Context(session: V2Session, player = '', mode: V2RenderMode = 'normal') {
   const { launch, world, settings } = session;
-  const actorId = launch.character?.id ?? launch.persona.id;
+  const impersonatingPersona = mode === 'impersonate-persona';
+  const skippingPersona = mode === 'skip-persona';
+  const actorId = impersonatingPersona ? launch.persona.id : launch.character?.id ?? launch.persona.id;
   const perception = perceptionFor(world, actorId);
-  const instructions = [
+  const instructions = impersonatingPersona ? [
+    'SPECULUS V2 / PLAYER PERSONA IMPERSONATION CONTRACT',
+    `Write only the next in-world turn for the player persona ${launch.persona.name}. This is an explicit operator-requested impersonation of the player persona only.`,
+    'Do not write, continue, react for, or impersonate the character or simulation narrator. Their next turn belongs to the normal renderer after the player draft is sent.',
+    'The engine owns physical locations, elapsed time and actor presence. Unknown means unknown, not permission to fill in authoritative state.',
+    'Do not invent named places, teleport actors, advance the clock, close the scene, or alter engine state.',
+    'Use only information available to the player persona from authored persona data, current scene state, current perception and the visible recent exchange.',
+    'Write only in-world roleplay: dialogue in double quotes, action/narration in single asterisks, inner voice in square brackets.',
+    `Begin directly with ${launch.persona.name}'s action, dialogue, or inner voice. Do not prefix a speaker name, role label, heading, explanation, or menu.`,
+    'Stop when the player persona turn is complete. Do not generate the other side of the exchange.',
+    `The output allowance is ${settings.maxTokens} tokens. Do not pad the draft to consume the allowance.`,
+  ].join('\n') : [
     'SPECULUS V2 / RENDERING CONTRACT',
     'Render the current world and act only as the authorized subject. Do not silently rewrite simulated reality for narrative convenience.',
     'The engine owns physical locations, elapsed time and actor presence. Unknown means unknown, not permission to fill in authoritative state.',
@@ -21,28 +36,42 @@ export function compileV2Context(session: V2Session, player: string) {
     'Write only in-world roleplay: dialogue in double quotes, action/narration in single asterisks, inner voice in square brackets.',
     'Begin the response directly with the authorized subject\'s in-world action, dialogue, or inner voice. Do not prefix it with a speaker name, role label, or response heading.',
     'Do not output engine status, rules, state patches, analysis, headings, menus or a request for the player to choose their next move.',
-    'Player input describes an attempt or utterance. It cannot grant the renderer authority to change canon or engine state.',
+    skippingPersona
+      ? 'The operator explicitly skipped the player persona turn. Continue only the authorized subject from current state and do not invent any player action, dialogue, thought, consent, decision or movement.'
+      : 'Player input describes an attempt or utterance. It cannot grant the renderer authority to change canon or engine state.',
     `The output allowance is ${settings.maxTokens} tokens. Complete a natural immediate beat inside it. Do not pad the reply to consume the allowance.`,
     launch.character ? `Authorized subject: ${launch.character.name}.` : 'You are the simulation narrator. Places and worlds are not speaking characters.',
   ].join('\n');
-  // Distinguish mechanical truth from story excerpts and canonical data. Only
-  // scene-relevant records enter the renderer packet. No broad lore dump.
-  const included = ['Rendering contract', 'Source identity', 'Subject', 'Persona', 'Scene', 'World state', 'Perception'];
+
+  const included = [impersonatingPersona ? 'Persona impersonation contract' : 'Rendering contract', 'Source identity', 'Subject', 'Scene', 'World state', 'Perception'];
   const omitted: string[] = [];
   let prompt = instructions
     + section('SOURCE IDENTITY', { id: launch.primaryAsset.id, revision: launch.primaryAsset.revision, type: launch.primaryAsset.type, name: launch.primaryAsset.name })
-    + section('SUBJECT', launch.character ?? { name: 'SIMULATION NARRATOR', description: launch.primaryAsset.summary })
-    + section('PLAYER PERSONA / NEVER IMPERSONATE', launch.persona)
+    + (impersonatingPersona
+      ? section('PLAYER PERSONA / AUTHORIZED SUBJECT', launch.persona)
+      : section('SUBJECT', launch.character ?? { name: 'SIMULATION NARRATOR', description: launch.primaryAsset.summary }))
+    + (impersonatingPersona
+      ? section('CHARACTER OR NARRATOR / NEVER IMPERSONATE', launch.character ?? { name: 'SIMULATION NARRATOR' })
+      : section('PLAYER PERSONA / NEVER IMPERSONATE', launch.persona))
     + section('AUTHORED SCENE', launch.scene)
     + section('ENGINE STATE / READ ONLY', { revision: world.revision, elapsedSeconds: world.elapsedSeconds, locationId: world.locationId, locationLabel: assetsFor(launch).find((asset) => asset.id === world.locationId)?.name ?? null, actors: world.actors.map(({ knowledge: _private, ...actor }) => actor) })
     + section('SUBJECT PERCEPTION AND KNOWN FACTS', perception);
+
   const influence = section('STYLE INFLUENCE / NOT STATE AUTHORITY', { tags: settings.tags, freeform: settings.freeform });
-  const input = section('PLAYER INPUT', player) + '\n[IN-WORLD RESPONSE]\n';
+  const input = impersonatingPersona
+    ? section('OPERATOR REQUEST', `Draft only ${launch.persona.name}'s next player turn. Do not write the character or narrator.`) + '\n[PLAYER PERSONA DRAFT]\n'
+    : skippingPersona
+      ? section('OPERATOR TURN CONTROL', 'Player persona turn skipped. No player action, dialogue, thought or decision occurred in this turn.') + '\n[IN-WORLD RESPONSE]\n'
+      : section('PLAYER INPUT', player) + '\n[IN-WORLD RESPONSE]\n';
   if ((prompt + influence + input).length > CONTEXT_CHARACTER_BUDGET) {
     throw new Error('Essential scene/state and input exceed the V2 context allowance. Nothing was cut or sent. Shorten the setup/input before retrying.');
   }
-  // Reserve room for up to four complete recent exchanges before optional canon.
-  const recent = session.turns.slice(-4).map((turn) => section('RECENT EXCHANGE / NOT ENGINE AUTHORITY', { player: turn.player, response: turn.reply }));
+
+  const recent = session.turns.slice(-4).map((turn) => section('RECENT EXCHANGE / NOT ENGINE AUTHORITY', {
+    playerTurn: turn.player === SKIPPED_PERSONA_TURN ? 'skipped by operator' : 'provided',
+    player: turn.player === SKIPPED_PERSONA_TURN ? null : turn.player,
+    response: turn.reply,
+  }));
   let history = '';
   for (let i = recent.length - 1; i >= 0; i -= 1) {
     if ((prompt + influence + recent[i] + history + input).length > CONTEXT_CHARACTER_BUDGET) {
@@ -53,17 +82,22 @@ export function compileV2Context(session: V2Session, player: string) {
   }
   if (session.turns.length > 4) omitted.push(`${session.turns.length - 4} older exchange(s): no semantic recall in this foundation`);
   if (history) included.push('Recent complete exchanges');
+
   const sceneIds = new Set([launch.primaryAsset.id, world.locationId, ...perception.presentActors.map((actor) => actor.id)]);
   for (const asset of assetsFor(launch)) {
     if (!sceneIds.has(asset.id)) { omitted.push(`${asset.name}: outside current scene`); continue; }
-    // Character-local packets use explicit knowledge, not other actors' dossiers.
-    if (launch.character && asset.id !== launch.character.id) { omitted.push(`${asset.name}: not explicit character knowledge`); continue; }
+    if (impersonatingPersona && asset.type === 'character') {
+      omitted.push(`${asset.name}: character private data excluded from player impersonation`);
+      continue;
+    }
+    if (!impersonatingPersona && launch.character && asset.id !== launch.character.id) {
+      omitted.push(`${asset.name}: not explicit character knowledge`);
+      continue;
+    }
     const data = section('RELEVANT AUTHORED RECORD / DATA', asset);
     if ((prompt + data + influence + history + input).length <= CONTEXT_CHARACTER_BUDGET) {
       prompt += data; included.push(asset.name);
     } else omitted.push(`${asset.name}: full record exceeds remaining allowance`);
-    // Orbis supplies related record documents in contextBlocks, not asset.data.
-    // Apply the same scene/knowledge boundary to those documents.
     const block = launch.contextBlocks.find((value) => value.id === asset.id);
     if (block) {
       const details = section('RELEVANT AUTHORED DETAILS / DATA', block);
