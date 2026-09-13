@@ -70,10 +70,14 @@ export function assertWorldCanon(world: WorldState, launch: V2ClientPackage): vo
 
 export function perceptionFor(world: WorldState, actorId: string) {
   const actor = world.actors.find((value) => value.id === actorId);
+  const anchored = Boolean(actor?.locationId);
   return {
     locationId: actor?.locationId ?? null,
     presentActors: actor?.locationId ? world.actors.filter((value) => value.locationId === actor.locationId).map(({ id, name }) => ({ id, name })) : [],
     knownFacts: actor?.knowledge ?? [],
-    limitations: ['Presence is unknown until explicitly anchored.', 'Related canon is not automatically character knowledge.'],
+    limitations: [
+      anchored ? 'Presence is limited to actors explicitly anchored at the current location.' : 'Presence is unknown until explicitly anchored.',
+      'Related canon is not automatically character knowledge.',
+    ],
   };
 }
